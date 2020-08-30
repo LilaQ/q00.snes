@@ -19,7 +19,7 @@ using namespace::std;
 unsigned char *_VRAM[0x4000];	//	16 kbytes
 unsigned char pVRAM[0x4000];		
 unsigned char OAM[0x100];		//	256 bytes
-const int FB_SIZE = 256 * 240 * 4;
+const int FB_SIZE = 256 * 224 * 4;
 SDL_Renderer *renderer, *renderer_nt, *renderer_oam;
 SDL_Window *window, *window_nt, *window_oam;
 SDL_Texture *texture, *texture_nt, *texture_oam;
@@ -34,13 +34,13 @@ void initPPU(string filename) {
 	//	init and create window and renderer
 	SDL_Init(SDL_INIT_VIDEO);
 	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
-	SDL_CreateWindowAndRenderer(256, 240, 0, &window, &renderer);
-	SDL_SetWindowSize(window, 512, 480);
+	SDL_CreateWindowAndRenderer(256, 224, 0, &window, &renderer);
+	SDL_SetWindowSize(window, 512, 448);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
 	SDL_SetWindowResizable(window, SDL_TRUE);
 
 	//	for fast rendering, create a texture
-	texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+	texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 224);
 
 	/*
 		INIT WINDOW

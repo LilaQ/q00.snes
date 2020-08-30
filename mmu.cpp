@@ -7,9 +7,10 @@
 #include "apu.h"
 #include "input.h"
 
-void powerUp() {
-	//	TODO
-}
+typedef uint8_t		u8;
+typedef uint16_t	u16;
+
+u8 memory[0xffffff];
 
 void reset() {
 	
@@ -29,7 +30,7 @@ void loadROM(string filename) {
 	resetCPU();
 }
 
-uint8_t readFromMem(uint16_t adr) {
+uint8_t readFromMem(u16 adr, u8 data_bank = 0) {
 	switch (adr)
 	{
 		default:
@@ -38,7 +39,7 @@ uint8_t readFromMem(uint16_t adr) {
 	}
 }
 
-void writeToMem(uint16_t adr, uint8_t val) {
+void writeToMem(u8 val, u16 adr, u8 data_bank = 0) {
 
 	switch (adr) {
 	default:
