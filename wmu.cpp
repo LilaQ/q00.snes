@@ -98,7 +98,7 @@ void handleWindowEvents(SDL_Event event) {
 				}
 				//	Reset
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 7) {
-					resetCPU();
+					reset();
 				}
 				//	Memory Map
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 8) {

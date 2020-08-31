@@ -5,105 +5,112 @@
 typedef uint8_t u8;
 typedef uint16_t u16;
 
-struct Status
-{
-	private:
-		bool N;	//	Negative
-		bool V;	//	Overflow
-		bool M;	//	Memory / Accumulator Select register size	-	0 = 16-bit, 1 = 8-bit	(only native mode)
-		bool X;	//	Index register Select size					-	0 = 16-bit, 1 = 8-bit	(only native mode)
-		bool D;	//	Decimal
-		bool I;	//	IRQ Disable
-		bool Z;	//	Zero
-		bool C;	//	Carry
-
-		//	side bits
-		bool B;	//	Break (emulation mode only)
-		bool E;	//	6502 Emulation mode	
-
-	public:
-		u8 getByte() {
-			(N << 7) | (V << 6) | (M << 5) | (X << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
-		}
-		bool getNegative() {
-			return N;
-		}
-		bool getOverflow() {
-			return V;
-		}
-		bool getAccuMemSize() {
-			return M;
-		}
-		bool getIndexSize() {
-			return X;
-		}
-		bool getDecimal() {
-			return D;
-		}
-		bool getIRQDisable() {
-			return I;
-		}
-		bool getZero() {
-			return Z;
-		}
-		bool getCarry() {
-			return C;
-		}
-		bool getBreak() {
-			return B;
-		}
-		bool getEmulation() {
-			return E;
-		}
-		void setByte(u8 val) {
-			C = val & 1;
-			Z = (val >> 1) & 1;
-			I = (val >> 2) & 1;
-			D = (val >> 3) & 1;
-			X = (val >> 4) & 1;
-			M = (val >> 5) & 1;
-			V = (val >> 6) & 1;
-			N = (val >> 7) & 1;
-		}
-		void setNegative(u8 val) {
-			N = val & 1;
-		}
-		void setOverflow(u8 val) {
-			V = val & 1;
-		}
-		void setAccuMemSize(u8 val) {
-			M = val & 1;
-		}
-		void setIndexSize(u8 val, Registers &regs) {
-			//	high bytes get reset on change from 8-bit to 16-bit or vice versa
-			X = val & 1;
-			regs.clearXYhighBytesOnModeChange();
-		}
-		void setDecimal(u8 val) {
-			D = val & 1;
-		}
-		void setIRQDisable(u8 val) {
-			I = val & 1;
-		}
-		void setZero(u8 val) {
-			Z = val & 1;
-		}
-		void setCarry(u8 val) {
-			C = val & 1;
-		}
-		void setBreak(u8 val) {
-			B = val & 1;
-		}
-		void setEmulation(u8 val) {
-			E = val & 1;
-		}
-
-};
+struct Status;
 
 struct Registers
 {
+	private:
 
-	private: 
+		struct Status
+		{
+			private:
+				bool N;	//	Negative
+				bool V;	//	Overflow
+				bool M;	//	Memory / Accumulator Select register size	-	0 = 16-bit, 1 = 8-bit	(only native mode)
+				bool X;	//	Index register Select size					-	0 = 16-bit, 1 = 8-bit	(only native mode)
+				bool D;	//	Decimal
+				bool I;	//	IRQ Disable
+				bool Z;	//	Zero
+				bool C;	//	Carry
+
+				//	side bits
+				bool B;	//	Break (emulation mode only)
+				bool E;	//	6502 Emulation mode	
+
+			public:
+				u8 getByte() {
+					//	NOT emulation mode
+					if (!E) {
+						return (N << 7) | (V << 6) | (M << 5) | (X << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
+					}
+					//	emulation mode
+					return  (N << 7) | (V << 6) | (0 << 5) | (B << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
+				}
+				bool getNegative() {
+					return N;
+				}
+				bool getOverflow() {
+					return V;
+				}
+				bool getAccuMemSize() {
+					return M;
+				}
+				bool getIndexSize() {
+					return X;
+				}
+				bool getDecimal() {
+					return D;
+				}
+				bool getIRQDisable() {
+					return I;
+				}
+				bool getZero() {
+					return Z;
+				}
+				bool getCarry() {
+					return C;
+				}
+				bool getBreak() {
+					return B;
+				}
+				bool getEmulation() {
+					return E;
+				}
+				void setByte(u8 val) {
+					C = val & 1;
+					Z = (val >> 1) & 1;
+					I = (val >> 2) & 1;
+					D = (val >> 3) & 1;
+					X = (val >> 4) & 1;
+					M = (val >> 5) & 1;
+					V = (val >> 6) & 1;
+					N = (val >> 7) & 1;
+				}
+				void setNegative(u8 val) {
+					N = val & 1;
+				}
+				void setOverflow(u8 val) {
+					V = val & 1;
+				}
+				void setAccuMemSize(u8 val) {
+					M = val & 1;
+				}
+				void setIndexSize(u8 val, Registers* regs) {
+					//	high bytes get reset on change from 8-bit to 16-bit or vice versa
+					X = val & 1;
+					regs->clearXYhighBytesOnModeChange();
+				}
+				void setDecimal(u8 val) {
+					D = val & 1;
+				}
+				void setIRQDisable(u8 val) {
+					I = val & 1;
+				}
+				void setZero(u8 val) {
+					Z = val & 1;
+				}
+				void setCarry(u8 val) {
+					C = val & 1;
+				}
+				void setBreak(u8 val) {
+					B = val & 1;
+				}
+				void setEmulation(u8 val) {
+					E = val & 1;
+				}
+
+		};
+
 		u8 A_lo;	//	Accumulator - low-byte
 		u8 A_hi;	//	Accumulator - high-byte
 		u8 DBR;		//	Data Bank Register
@@ -167,7 +174,7 @@ struct Registers
 			return Y_lo;
 		}
 		//	reset the high bytes of X and Y registers when the sizes of XY got changed from 8-bit to 16-bit or vice versa
-		void clearXYhighBytesOnModeChange() {	
+		void clearXYhighBytesOnModeChange() {
 			Y_hi = 0x00;
 			X_hi = 0x00;
 		}
@@ -213,6 +220,7 @@ struct Registers
 };
 
 
+
 int stepCPU();
-void resetCPU();
+void resetCPU(u16 reset_vector);
 void togglePause();

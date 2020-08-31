@@ -7,10 +7,9 @@
 uint16_t PC = 0x0000;
 uint8_t SP_ = 0x0000;
 Registers registers;
-Status status;
 
-void resetCPU() {
-	PC = readFromMem(0xfffd) << 8 | readFromMem(0xfffc);
+void resetCPU(u16 reset_vector) {
+	PC = reset_vector;
 	printf("Reset CPU, starting at PC: %x\n", PC);
 }
 

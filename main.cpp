@@ -12,7 +12,8 @@
 using namespace::std;
 
 SDL_Event event;					//	Eventhandler for all SDL events
-string filename = "smb.nes";
+string filename = "CPUAND.sfc";
+//string filename = "smw.smc";
 bool unpaused = true;
 
 int lastcyc = 0;
@@ -22,13 +23,10 @@ int main()
 {
 
 	//	load cartridge
-	//loadROM(filename);
+	loadROM(filename);
 
 	initPPU(filename);
-
 	initAPU();
-
-	resetCPU();
 
 	while (1) {
 
@@ -40,7 +38,6 @@ int main()
 			}
 			stepAPU(lastcyc);
 		}
-
 		handleWindowEvents(event);
 	}
 
