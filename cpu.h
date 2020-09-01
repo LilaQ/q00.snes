@@ -1,9 +1,11 @@
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
+#include "mmu.h"
 
-typedef uint8_t u8;
-typedef uint16_t u16;
+typedef uint8_t		u8;
+typedef uint16_t	u16;
+typedef uint32_t	u32;
 
 struct Status;
 
@@ -14,18 +16,18 @@ struct Registers
 		struct Status
 		{
 			private:
-				bool N;	//	Negative
-				bool V;	//	Overflow
-				bool M;	//	Memory / Accumulator Select register size	-	0 = 16-bit, 1 = 8-bit	(only native mode)
-				bool X;	//	Index register Select size					-	0 = 16-bit, 1 = 8-bit	(only native mode)
-				bool D;	//	Decimal
-				bool I;	//	IRQ Disable
-				bool Z;	//	Zero
-				bool C;	//	Carry
+				bool N;			//	Negative
+				bool V;			//	Overflow
+				bool M;			//	Memory / Accumulator Select register size	-	0 = 16-bit, 1 = 8-bit	(only native mode)
+				bool X;			//	Index register Select size					-	0 = 16-bit, 1 = 8-bit	(only native mode)
+				bool D;			//	Decimal
+				bool I = true;	//	IRQ Disable
+				bool Z;			//	Zero
+				bool C;			//	Carry
 
 				//	side bits
-				bool B;	//	Break (emulation mode only)
-				bool E;	//	6502 Emulation mode	
+				bool B = true;	//	Break (emulation mode only)
+				bool E = true;	//	6502 Emulation mode	
 
 			public:
 				u8 getByte() {
@@ -34,7 +36,7 @@ struct Registers
 						return (N << 7) | (V << 6) | (M << 5) | (X << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
 					}
 					//	emulation mode
-					return  (N << 7) | (V << 6) | (0 << 5) | (B << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
+					return  (N << 7) | (V << 6) | (1 << 5) | (B << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
 				}
 				bool getNegative() {
 					return N;
@@ -116,62 +118,71 @@ struct Registers
 		u8 DBR;		//	Data Bank Register
 		u16 D;		//	Direct Page Register
 		u8 PB;		//	Program Bank Register
-		Status P;	//	Program Status
-		u16 SP;		//	Stack Pointer
 		u16 X_lo;	//	index X - low byte
 		u16 X_hi;	//	index X - high byte
 		u16 Y_lo;	//	index Y - low byte
 		u16 Y_hi;	//	index Y - high byte
-		u16 PC;		//	Program Counter
+		u16 SP;		//	Stack Pointer
 
 	public:
+
+		Status P;	//	Program Status
+		u16 PC;		//	Program Counter
+
 		//	8-bit / 16-bit wide Accumulator templates (getter / setter)
-		template <typename T>
-		void setAccumulator(T val) {
+		void setAccumulator(u16 val) {
 			A_lo = val & 0xff;
 			A_hi = val >> 8;
 		}
-		template <>
 		void setAccumulator(u8 val) {
 			A_lo = val;
 		}
-		template <typename T> T getAccumulator() {
-			if (!P.M) {
-				return (A_hi << 8) | A_lo;
+		template <typename T> 
+		T getAccumulator() {
+			if (!P.getAccuMemSize()) {
+				return (u16) ((A_hi << 8) | A_lo);
 			}
-			return A_lo;
+			return (u8) A_lo;
 		}
 		//	8-bit / 16-bit wide X-Index templates (getter / setter)
-		template <typename T>
-		void setX(T val) {
+		void setX(u16 val) {
 			X_lo = val & 0xff;
 			X_hi = val >> 8;
 		}
-		template <>
 		void setX(u8 val) {
 			X_lo = val;
 		}
-		template <typename T> T getX() {
-			if (!P.M) {
+		template <typename T> 
+		T getX() {
+			if (!P.getAccuMemSize()) {
 				return (X_hi << 8) | X_lo;
 			}
 			return X_lo;
 		}
 		//	8-bit / 16-bit wide Y-Index templates (getter / setter)
-		template <typename T>
-		void setY(T val) {
+		void setY(u16 val) {
 			Y_lo = val & 0xff;
 			Y_hi = val >> 8;
 		}
-		template <>
 		void setY(u8 val) {
 			Y_lo = val;
 		}
 		template <typename T> T getY() {
-			if (!P.M) {
+			if (!P.getAccuMemSize()) {
 				return (Y_hi << 8) | Y_lo;
 			}
 			return Y_lo;
+		}
+		//	8-bit / 16-bit wide Y-Index templates (getter / setter)
+		template <typename T>
+		void setSP(T val) {
+			SP = val;
+		}
+		u16 getSP() {
+			if (P.getEmulation()) {
+				return 0x100 | (SP & 0xff);
+			}
+			return SP;
 		}
 		//	reset the high bytes of X and Y registers when the sizes of XY got changed from 8-bit to 16-bit or vice versa
 		void clearXYhighBytesOnModeChange() {
@@ -193,15 +204,6 @@ struct Registers
 		u16 getDirectPageRegister() {
 			return D;
 		}
-		u16 getStackPointer() {
-			return SP;
-		}
-		u16 getProgramCounter() {
-			return PC;
-		}
-		Status getStatus() {
-			return P;
-		}
 		void setProgramBankRegister(u8 val) {
 			PB = val;
 		}
@@ -211,16 +213,18 @@ struct Registers
 		void setDirectPageRegister(u8 val) {
 			D = val;
 		}
-		void setStackPointer(u16 val) {
-			SP = val;
-		}
-		void setProgramCounter(u16 val) {
-			PC = val;
+		void resetStackPointer() {
+			if (P.getEmulation()) {
+				SP = 0x1ff;
+			}
+			else {
+				SP = 0x1ff;
+			}
 		}
 };
 
 
 
-int stepCPU();
+u8 stepCPU();
 void resetCPU(u16 reset_vector);
 void togglePause();

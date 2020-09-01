@@ -126,7 +126,6 @@ public:
 		rom_chipset = (ROM_chipset)(header[0x26] & 0b1111);
 		rom_coprocessor = (ROM_coprocessor)(header[0x26] >> 8);
 		rom_size = header[0x27]; 
-		printf("This is rom size %d", rom_size);
 		rom_real_size = 0x400 << rom_size;
 		sram_size = header[0x28];
 		sram_real_size = (sram_size != 0) ? 0x400 << sram_size : 0;
