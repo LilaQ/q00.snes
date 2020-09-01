@@ -90,7 +90,9 @@ struct Registers
 				void setIndexSize(u8 val, Registers* regs) {
 					//	high bytes get reset on change from 8-bit to 16-bit or vice versa
 					X = val & 1;
-					regs->clearXYhighBytesOnModeChange();
+					if (X) {
+						regs->clearXYhighBytesOnModeChange();
+					}
 				}
 				void setDecimal(u8 val) {
 					D = val & 1;
@@ -118,10 +120,10 @@ struct Registers
 		u8 DBR;		//	Data Bank Register
 		u16 D;		//	Direct Page Register
 		u8 PB;		//	Program Bank Register
-		u16 X_lo;	//	index X - low byte
-		u16 X_hi;	//	index X - high byte
-		u16 Y_lo;	//	index Y - low byte
-		u16 Y_hi;	//	index Y - high byte
+		u8 X_lo;	//	index X - low byte
+		u8 X_hi;	//	index X - high byte
+		u8 Y_lo;	//	index Y - low byte
+		u8 Y_hi;	//	index Y - high byte
 		u16 SP;		//	Stack Pointer
 
 	public:
@@ -152,10 +154,7 @@ struct Registers
 			X_lo = val;
 		}
 		u16 getX() {
-			if (!P.getAccuMemSize()) {
-				return (X_hi << 8) | X_lo;
-			}
-			return X_lo;
+			return (X_hi << 8) | X_lo;
 		}
 		//	8-bit / 16-bit wide Y-Index templates (getter / setter)
 		void setY(u16 val) {
@@ -165,11 +164,8 @@ struct Registers
 		void setY(u8 val) {
 			Y_lo = val;
 		}
-		template <typename T> T getY() {
-			if (!P.getAccuMemSize()) {
-				return (Y_hi << 8) | Y_lo;
-			}
-			return Y_lo;
+		u16 getY() {
+			return (Y_hi << 8) | Y_lo;
 		}
 		//	8-bit / 16-bit wide Y-Index templates (getter / setter)
 		template <typename T>
@@ -208,7 +204,7 @@ struct Registers
 		void setDataBankRegister(u8 val) {
 			DBR = val;
 		}
-		void setDirectPageRegister(u8 val) {
+		void setDirectPageRegister(u16 val) {
 			D = val;
 		}
 		void resetStackPointer() {
