@@ -142,29 +142,67 @@ u8 REP() {
 	return 3;
 }
 
-template <typename T>
-u8 LDX(T (*f)() ) {
-	regs.setX(f());
+//	Load X-Register from memory
+u8 LDX(u8 (*f)() ) {
+	if (regs.P.getEmulation()) {
+		u8 lo = f();
+		regs.setX(lo);
+	}
+	else {
+		u8 lo = f();
+		u8 hi = f();
+		regs.setX((u16)((hi << 8) | lo));
+	}
+	regs.P.setZero(regs.getX() == 0);
+	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)) );
+	regs.PC++;
+	return 2;
+}
+
+//	Transfer X to SP
+u8 TXS() {
+	if (regs.P.getEmulation()) {
+		regs.setSP(0x100 | (regs.getX() & 0xff));
+	} 
+	else {
+		regs.setSP(regs.getX());
+	}
+	regs.P.setZero(regs.getX() == 0);
+	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)));
+	regs.PC++;
+	return 2;
+}
+
+//	Load accumulator from memory
+u8 LDA(u8 (*f)()) {
+	if (regs.P.getEmulation()) {
+		u8 lo = f();
+		regs.setAccumulator(lo);
+	}
+	else {
+		u8 lo = f();
+		u8 hi = f();
+		regs.setAccumulator((u16)((hi << 8) | lo));
+	}
+	regs.P.setZero(regs.getAccumulator() == 0);
+	regs.P.setNegative(regs.getAccumulator() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)));
 	regs.PC++;
 	return 2;
 }
 
 
-//	Addressing modes
-template <typename T>
-T ADDR_getImmediate() {
-	if (regs.P.getEmulation()) {
-		regs.PC++;
-		return (u8) readFromMem(regs.PC);
-	}
-	regs.PC += 2;
-	return (u16)((readFromMem(regs.PC) << 8) | readFromMem(regs.PC - 1));
+
+//		Addressing modes
+
+u8 ADDR_getImmediate() {
+	regs.PC++;
+	return (u8) readFromMem(regs.PC);
 }
 
 
 u8 stepCPU() {
 	string flags = byteToBinaryString(regs.P.getByte());
-	printf("Op: %02x PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", readFromMem(regs.PC, 0), regs.PC, regs.getAccumulator<u16>(), regs.getX<u16>(), regs.getY<u16>(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
+	printf("Op: %02x PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", readFromMem(regs.PC, 0), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY<u16>(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
 	switch (readFromMem(regs.PC)) {
 
 	case 0x18:	return CLC(); break;
@@ -173,7 +211,11 @@ u8 stepCPU() {
 
 	case 0x78:	return SEI(); break;
 
+	case 0x9a:	return TXS(); break;
+
 	case 0xa2:	return LDX(ADDR_getImmediate); break;
+
+	case 0xa9:	return LDA(ADDR_getImmediate); break;
 
 	case 0xab:	return PLB(); break;
 

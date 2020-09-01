@@ -137,12 +137,11 @@ struct Registers
 		void setAccumulator(u8 val) {
 			A_lo = val;
 		}
-		template <typename T> 
-		T getAccumulator() {
+		u16 getAccumulator() {
 			if (!P.getAccuMemSize()) {
-				return (u16) ((A_hi << 8) | A_lo);
+				return (A_hi << 8) | A_lo;
 			}
-			return (u8) A_lo;
+			return A_lo;
 		}
 		//	8-bit / 16-bit wide X-Index templates (getter / setter)
 		void setX(u16 val) {
@@ -152,8 +151,7 @@ struct Registers
 		void setX(u8 val) {
 			X_lo = val;
 		}
-		template <typename T> 
-		T getX() {
+		u16 getX() {
 			if (!P.getAccuMemSize()) {
 				return (X_hi << 8) | X_lo;
 			}
