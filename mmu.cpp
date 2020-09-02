@@ -93,12 +93,12 @@ void loadROM(string filename) {
 
 	}
 
-	cout << "Check Mirroring:\n";
+	/*cout << "Check Mirroring:\n";
 	cout << hex << memory[0x808000] << " " << memory[0x908000] << " " << memory[0xa08000] << " " << memory[0xb08000] << " \n";
 	cout << hex << memory[0x818000] << " " << memory[0x948000] << " " << memory[0xa58000] << " " << memory[0xbb8000] << " \n";
 	cout << hex << memory[0xf18000] << " " << memory[0xf48000] << " " << memory[0xf58000] << " " << memory[0xfb8000] << " \n";
 	cout << hex << memory[0x008000] << " " << memory[0x208000] << " " << memory[0x408000] << " " << memory[0x508000] << " \n";
-	cout << "<done\n";
+	cout << "<done\n";*/
 
 	u8 header[0x50];
 	for (u8 i = 0; i < 0x50; i++) {
@@ -106,7 +106,7 @@ void loadROM(string filename) {
 	}
 	cartridge.initSNESHeader(header);
 	
-	cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
+	/*cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
 	cout << "------------------------------------------------------\n";
 	cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
 	cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
@@ -124,7 +124,7 @@ void loadROM(string filename) {
  	cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
 	cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
 	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
-	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
+	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
 
 	resetCPU( cartridge.emu_reset_vector );
 }

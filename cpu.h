@@ -113,6 +113,13 @@ struct Registers
 					E = val & 1;
 				}
 
+				//	helper, to reduce clutter
+				bool isMReset() {
+					return M == 0;
+				}
+				bool isXReset() {
+					return X == 0;
+				}
 		};
 
 		u8 A_lo;	//	Accumulator - low-byte

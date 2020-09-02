@@ -13,7 +13,7 @@ Registers regs;
 void resetCPU(u16 reset_vector) {
 	regs.PC = reset_vector;
 	regs.resetStackPointer();
-	printf("Reset CPU, starting at PC: %x\n", regs.PC);
+	//printf("Reset CPU, starting at PC: %x\n", regs.PC);
 }
 
 
@@ -64,6 +64,12 @@ string byteToBinaryString(u8 val) {
 
 
 //		Instructions
+
+//	nop
+u8 NOP() {
+	regs.PC++;
+	return 2;
+}
 
 //	set interrupt disable flag
 u8 SEI() {
@@ -178,7 +184,7 @@ u8 SEP() {
 u8 DEX() {
 	regs.setX((u16)(regs.getX()-1));
 	regs.P.setZero(regs.getX() == 0);
-	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)));
+	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
 	regs.PC++;
 	return 2;
 }
@@ -187,27 +193,38 @@ u8 DEX() {
 u8 DEY() {
 	regs.setY((u16)(regs.getY() - 1));
 	regs.P.setZero(regs.getY() == 0);
-	regs.P.setNegative(regs.getY() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)));
+	regs.P.setNegative(regs.getY() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
 	regs.PC++;
 	return 2;
 }
 
-//	Load X-Register from memory
-u8 LDX(u8 (*f)() ) {
-	if (regs.P.getEmulation()) {
-		u8 lo = f();
-		regs.setX(lo);
+//	Test memory bits against Accumulator
+u8 BIT(u16(*f)(), u8 bytes, u8 cycles, bool is_immediate) {
+	
+	if (bytes == 2) {
+		u8 val = readFromMem(f(), regs.getProgramBankRegister());
+		if (!is_immediate) {
+			regs.P.setNegative(val >> 7);
+			regs.P.setOverflow(val >> 6);
+		}
+		regs.P.setZero((val & regs.getAccumulator()) == 0x00);
+	} 
+	else if (bytes == 3) {
+		u8 lo = readFromMem(f(), regs.getProgramBankRegister());
+		u8 hi = readFromMem(f(), regs.getProgramBankRegister());
+		u16 val = (hi << 8) | lo;
+		if (!is_immediate) {
+			regs.P.setNegative(val >> 15);
+			regs.P.setOverflow(val >> 14);
+		}
+		regs.P.setZero((val & regs.getAccumulator()) == 0x0000);
 	}
-	else {
-		u8 lo = f();
-		u8 hi = f();
-		regs.setX((u16)((hi << 8) | lo));
-	}
-	regs.P.setZero(regs.getX() == 0);
-	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)) );
 	regs.PC++;
-	return 2;
+	return cycles;
 }
+
+
+//		Transfers
 
 //	Transfer 16 bit A to DP
 u8 TCD() {
@@ -232,97 +249,177 @@ u8 TXS() {
 	return 2;
 }
 
+
+//		Loads
+
 //	Load accumulator from memory
-u8 LDA(u8 (*f)()) {
-	if (regs.P.getAccuMemSize()) {
-		u8 lo = f();
+u8 LDA(u16 (*f)(), u8 bytes, u8 cycles) {
+	u16 adr = f();
+	if (bytes == 2) {
+		u8 lo = readFromMem(adr, regs.getProgramBankRegister());
 		regs.setAccumulator(lo);
+		regs.P.setZero(lo == 0);
+		regs.P.setNegative(lo >> 7);
 	}
-	else {
-		u8 lo = f();
-		u8 hi = f();
-		regs.setAccumulator((u16)((hi << 8) | lo));
+	else if (bytes == 3) {
+		u8 lo = readFromMem(adr, regs.getProgramBankRegister());
+		u8 hi = readFromMem(adr + 1, regs.getProgramBankRegister());
+		u16 val = (hi << 8) | lo;
+		regs.setAccumulator(val);
+		regs.P.setZero(val == 0);
+		regs.P.setNegative(val >> 15);
 	}
-	regs.P.setZero(regs.getAccumulator() == 0);
-	regs.P.setNegative(regs.getAccumulator() >> (7 + ((1 - regs.P.getAccuMemSize()) * 8)));
-	regs.PC++;
+	regs.PC += (bytes-1);
+	return cycles;
+}
+
+//	Load X-Register from memory
+u8 LDX(u16(*f)(), u8 bytes, u8 cycles) {
+	u16 adr = f();
+	if (bytes == 2) {
+		u8 lo = readFromMem(adr, regs.getProgramBankRegister());
+		regs.setX(lo);
+		regs.P.setZero(lo == 0);
+		regs.P.setNegative(lo >> 7);
+	}
+	else if (bytes == 3) {
+		u8 lo = readFromMem(adr, regs.getProgramBankRegister());
+		u8 hi = readFromMem(adr + 1, regs.getProgramBankRegister());
+		u16 val = (hi << 8) | lo;
+		regs.setX(val);
+		regs.P.setZero(val == 0);
+		regs.P.setNegative(val >> 15);
+	}
+	regs.PC += (bytes-1);
 	return 2;
+}
+
+//	Load Y-Register from memory
+u8 LDY(u16(*f)(), u8 bytes, u8 cycles) {
+	u16 adr = f();
+	if (bytes == 2) {
+		u8 lo = readFromMem(adr, regs.getProgramBankRegister());
+		regs.setY(lo);
+		regs.P.setZero(lo == 0);
+		regs.P.setNegative(lo >> 7);
+	}
+	else if (bytes == 3) {
+		u8 lo = readFromMem(adr, regs.getProgramBankRegister());
+		u8 hi = readFromMem(adr+1, regs.getProgramBankRegister());
+		u16 val = (hi << 8) | lo;
+		regs.setY(val);
+		regs.P.setZero(val == 0);
+		regs.P.setNegative(val >> 15);
+	}
+	regs.PC += (bytes-1);
+	return cycles;
 }
 
 
 //		Stores
 
 //	Store accumulator to memory
-u8 STA(u16 (*f)()) {
+u8 STA(u16 (*f)(), u8 bytes, u8 cycles) {
 	writeToMem(regs.getAccumulator(), f(), regs.getDataBankRegister());
-	regs.PC++;
-	return 4;
+	regs.PC += (bytes-1);
+	return cycles;
 }
-
 //	Store zero to memory
-u8 STZ(u16 (*f)()) {
+u8 STZ(u16 (*f)(), u8 bytes, u8 cycles) {
 	writeToMem(0x00, f(), regs.getDataBankRegister());
-	regs.PC++;
-	return 4;
+	regs.PC += (bytes - 1);
+	return cycles;
+}
+//	Store X-Register to memory
+u8 STX(u16(*f)(), u8 bytes, u8 cycles) {
+	writeToMem(regs.getX(), f(), regs.getDataBankRegister());
+	regs.PC += (bytes - 1);
+	return cycles;
+}
+//	Store Y-Register to memory
+u8 STY(u16 (*f)(), u8 bytes, u8 cycles) {
+	writeToMem(regs.getY(), f(), regs.getDataBankRegister());
+	regs.PC += (bytes - 1);
+	return cycles;
 }
 
 
 //		Branches
 
 //	Branch if not equal (Z = 0)
-u8 BNE(i8 (*f)()) {
+u8 BNE(u16 (*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	i8 offset = f();
+	i8 offset = readFromMem(f(), regs.getProgramBankRegister());
 	regs.PC++;
 	if (regs.P.getZero() == 0) {
 		regs.PC += offset;
 		branch_taken = 1;
 	} 
-	return 2 + branch_taken;
+	return cycles + branch_taken;
+}
+
+
+//		Jumps
+
+//	Jump Long
+u8 JML(u32 (*f)()) {
+	regs.PC = f();
+	regs.setProgramBankRegister((regs.PC >> 16) & 0xff);
+	return 4;
 }
 
 
 
 //		Addressing modes
 
-i8 ADDR_getSignedImmediate() {
+u16 ADDR_getImmediate() {
 	regs.PC++;
-	return (i8)readFromMem(regs.PC);
-}
-u8 ADDR_getImmediate() {
-	regs.PC++;
-	return (u8) readFromMem(regs.PC);
+	return regs.PC;
 }
 u16 ADDR_getAbsolute() {
-	regs.PC += 2;
-	return (u16) ((readFromMem(regs.PC) << 8) | readFromMem(regs.PC-1));
+	regs.PC++;
+	return ((readFromMem(regs.PC, regs.getProgramBankRegister()) << 8) | readFromMem(regs.PC-1, regs.getProgramBankRegister()));
+}
+u32 ADDR_getLong() {
+	regs.PC++;
+	return (u16)((readFromMem(regs.PC, regs.getProgramBankRegister()) << 16) | ((readFromMem(regs.PC - 1, regs.getProgramBankRegister())) << 8) | (readFromMem(regs.PC - 2, regs.getProgramBankRegister())));
 }
 
 
 u8 stepCPU() {
 	string flags = byteToBinaryString(regs.P.getByte());
-	printf("Op: %02x %02x %02x PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", readFromMem(regs.PC, regs.getDataBankRegister()), readFromMem(regs.PC+1, regs.getDataBankRegister()), readFromMem(regs.PC+2, regs.getDataBankRegister()), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	switch (readFromMem(regs.PC)) {
+	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", readFromMem(regs.PC, regs.getDataBankRegister()), readFromMem(regs.PC+1, regs.getDataBankRegister()), readFromMem(regs.PC+2, regs.getDataBankRegister()), readFromMem(regs.PC + 3, regs.getDataBankRegister()), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
+	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.getProgramBankRegister(), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str());
+	
+	switch (readFromMem(regs.PC, regs.getProgramBankRegister())) {
 
 	case 0x18:	return CLC(); break;
+
+	case 0x2c:	return BIT(ADDR_getAbsolute, 3, 4, false);
 
 	case 0x4b:	return PHK(); break;
 
 	case 0x5b:	return TCD(); break;
+	case 0x5c:	return JML(ADDR_getLong); break;
 
 	case 0x78:	return SEI(); break;
 
 	case 0x88:	return DEY(); break;
+	//case 0x89:	return (regs.P.getAccuMemSize()) ? BIT(ADDR_getImmediate, 2, 2) : BIT(ADDR_getImmediate, 3, 3); break;
 
-	case 0x8d:	return STA(ADDR_getAbsolute); break;
+	case 0x8c:	return STY(ADDR_getAbsolute, 3, 4 + regs.P.isXReset()); break;
+	case 0x8d:	return STA(ADDR_getAbsolute, 3, 4 + regs.P.isMReset()); break;
+	case 0x8e:	return STX(ADDR_getAbsolute, 3, 4 + regs.P.isXReset()); break;
 
 	case 0x9a:	return TXS(); break;
 
-	case 0x9c:	return STZ(ADDR_getAbsolute); break;
+	case 0x9c:	return STZ(ADDR_getAbsolute, 3, 4 + regs.P.isMReset()); break;
 
-	case 0xa2:	return LDX(ADDR_getImmediate); break;
+	case 0xa0:	return LDY(ADDR_getImmediate, 2 + regs.P.isXReset(), 2 + regs.P.isXReset()); break;
 
-	case 0xa9:	return LDA(ADDR_getImmediate); break;
+	case 0xa2:	return LDX(ADDR_getImmediate, 2 + regs.P.isXReset(), 2 + regs.P.isXReset()); break;
+
+	case 0xa9:	return LDA(ADDR_getImmediate, 2 + regs.P.isMReset(), 2 + regs.P.isMReset()); break;
 
 	case 0xab:	return PLB(); break;
 
@@ -330,9 +427,11 @@ u8 stepCPU() {
 
 	case 0xca:	return DEX(); break;
 
-	case 0xd0:	return BNE(ADDR_getSignedImmediate); break;
+	case 0xd0:	return BNE(ADDR_getImmediate, 2 + (regs.P.getEmulation())); break;
 
 	case 0xe2:	return SEP(); break;
+
+	case 0xea:	return NOP(); break;
 			
 	case 0xfb:	return XCE(); break;
 
