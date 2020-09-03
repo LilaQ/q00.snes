@@ -129,10 +129,45 @@ void loadROM(string filename) {
 	resetCPU( cartridge.emu_reset_vector );
 }
 
-uint8_t readFromMem(u16 adr, u8 bank_nr) {
+u16 NMI = 0xc2;
+
+uint8_t readFromMem(u32 fulladr) {
+	u8 bank_nr = fulladr >> 16;
+	u16 adr = fulladr & 0xffff;
 	switch (bank_nr)
 	{
-		
+		case 0x00:
+			switch (adr) {
+			case 0x4200:	//	PPU Interrupts - Interrupt Enable and Joypad Requests (W)
+				break;
+			case 0x4207:	//	PPU Interrupts - H-Count Timer Setting - Low (W)
+				break;
+			case 0x4208:	//	PPU Interrupts - H-Count Timer Setting - High (W)
+				break;
+			case 0x4209:	//	PPU Interrupts - V-Count Timer Setting - Low (W)
+				break;
+			case 0x420a:	//	PPU Interrupts - V-Count Timer Setting - High (W)
+				break;
+			case 0x4210:	//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
+				//	TODO add the NMI flag
+				//	2 is always set, this inidicates the CPU version
+				if (NMI == 0x42) {
+					NMI = 0xc2;
+					return NMI;
+				}
+				if (NMI == 0xc2) {
+					NMI = 0x42;
+					return NMI;
+				}
+				break;
+			case 0x4211:	//	PPU Interrupts - H/V-Timer IRQ Flag (R) [Read/Ack]
+				break;
+			case 0x4212:	//	PPU Interrupts - H/V-Blank Flag and Joypad Busy Flag (R)
+				break;
+			default:
+				return memory[(bank_nr << 16) | adr];
+				break;
+			}
 		case 0x7e:		//	WRAM (work RAM)
 		case 0x7f:
 			break;
@@ -142,17 +177,15 @@ uint8_t readFromMem(u16 adr, u8 bank_nr) {
 	}
 }
 
-void writeToMem(u8 val, u16 adr, u8 bank_nr) {
-
+void writeToMem(u8 val, u32 fulladr) {
+	u8 bank_nr = fulladr >> 16;
+	u8 adr = fulladr & 0xffff;
 	switch ((bank_nr << 16) | adr) {
 	default:
+		memory[fulladr] = val;
 		break;
 	}
 
-}
-
-bool pageBoundaryCrossed() {
-	return pbc;
 }
 
 //	addressing modes

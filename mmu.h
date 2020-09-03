@@ -237,8 +237,8 @@ public:
 
 void reset();
 void loadROM(string filename);
-unsigned char readFromMem(u16 adr, u8 bank_nr = 0);
-void writeToMem(u8 val, u16 adr, u8 bank_nr = 0);
+unsigned char readFromMem(u32 adr);
+void writeToMem(u8 val, u32 adr);
 
 //	Addressing modes (6502)
 u16 getImmediate(u16 adr);

@@ -147,10 +147,10 @@ struct Registers
 			A_lo = val;
 		}
 		u16 getAccumulator() {
-			if (!P.getAccuMemSize()) {
+			//if (!P.getAccuMemSize()) {
 				return (A_hi << 8) | A_lo;
-			}
-			return A_lo;
+			//}
+			//return A_lo;
 		}
 		//	8-bit / 16-bit wide X-Index templates (getter / setter)
 		void setX(u16 val) {
@@ -161,7 +161,10 @@ struct Registers
 			X_lo = val;
 		}
 		u16 getX() {
-			return (X_hi << 8) | X_lo;
+			if (!P.getIndexSize()) {
+				return (X_hi << 8) | X_lo;
+			}
+			return X_lo;
 		}
 		//	8-bit / 16-bit wide Y-Index templates (getter / setter)
 		void setY(u16 val) {
@@ -172,7 +175,10 @@ struct Registers
 			Y_lo = val;
 		}
 		u16 getY() {
-			return (Y_hi << 8) | Y_lo;
+			if (!P.getIndexSize()) {
+				return (Y_hi << 8) | Y_lo;
+			}
+			return Y_lo;
 		}
 		//	8-bit / 16-bit wide Y-Index templates (getter / setter)
 		template <typename T>
@@ -221,6 +227,9 @@ struct Registers
 			else {
 				SP = 0x1ff;
 			}
+		}
+		bool isDPLowNotZero() {
+			return (D & 0xff) != 0x00;
 		}
 };
 
