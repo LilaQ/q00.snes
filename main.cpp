@@ -12,7 +12,15 @@
 using namespace::std;
 
 SDL_Event event;					//	Eventhandler for all SDL events
-string filename = "CPUAND.sfc";
+
+//		Kroms tests from https://github.com/PeterLemon/SNES/tree/master/CPUTest/CPU
+//string filename = "CPUAND.sfc";		//	-	Passed
+//string filename = "CPUADC.sfc";		//	-	Passed
+//string filename = "CPUJMP.sfc";		//	-	Passed
+//string filename = "CPUROL.sfc";		//	-	Passed
+//string filename = "CPUROR.sfc";		//	-	Passed
+string filename = "CPUORA.sfc";		//	-	
+
 //string filename = "smw.smc";
 bool unpaused = true;
 

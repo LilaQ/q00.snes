@@ -180,7 +180,7 @@ uint8_t readFromMem(u32 fulladr) {
 void writeToMem(u8 val, u32 fulladr) {
 	u8 bank_nr = fulladr >> 16;
 	u8 adr = fulladr & 0xffff;
-	switch ((bank_nr << 16) | adr) {
+ 	switch ((bank_nr << 16) | adr) {
 	default:
 		memory[fulladr] = val;
 		break;
