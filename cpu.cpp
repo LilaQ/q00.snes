@@ -639,11 +639,6 @@ u32 ADDR_getAbsolute() {
 	u16 adr = ((readFromMem(regs.PC) << 8) | readFromMem(regs.PC-1));
 	return (dbr << 16) | adr;
 }
-u32 ADDR_getLong() {
-	regs.PC += 3;
-	u8 dbr = regs.getDataBankRegister();
-	return (dbr << 16) | (readFromMem(regs.PC - 1) << 8) | readFromMem(regs.PC - 2);
-}
 u32 ADDR_getAbsoluteIndexedX() {
 	regs.PC += 2;
 	u8 dbr = regs.getDataBankRegister();
@@ -652,9 +647,31 @@ u32 ADDR_getAbsoluteIndexedX() {
 	adr = adr + regs.getX();
 	return (dbr << 16) | adr;
 }
+u32 ADDR_getAbsoluteIndexedY() {
+	regs.PC += 2;
+	u8 dbr = regs.getDataBankRegister();
+	u16 adr = ((readFromMem(regs.PC) << 8) | readFromMem(regs.PC - 1));
+	pbr = (adr & 0xff00) != ((adr + regs.getY()) & 0xff00);
+	adr = adr + regs.getY();
+	return (dbr << 16) | adr;
+}
+u32 ADDR_getAbsoluteLongIndexedX() {
+	regs.PC += 3;
+	u8 dbr = regs.getDataBankRegister();
+	return (dbr << 16) | (readFromMem(regs.PC - 1) << 8) | readFromMem(regs.PC - 2) + regs.getX();
+}
+u32 ADDR_getLong() {
+	regs.PC += 3;
+	u8 dbr = regs.getDataBankRegister();
+	return (dbr << 16) | (readFromMem(regs.PC - 1) << 8) | readFromMem(regs.PC - 2);
+}
 u32 ADDR_getDirectPage() {
 	regs.PC++;
 	return regs.getDirectPageRegister() | readFromMem(regs.PC);
+}
+u32 ADDR_getDirectPageIndexedX() {
+	regs.PC++;
+	return regs.getDirectPageRegister() | readFromMem(regs.PC) + regs.getX();
 }
 u32 ADDR_getDirectPageIndirect() {
 	regs.PC++;
@@ -705,7 +722,13 @@ u8 stepCPU() {
 
 	case 0x32:	return AND(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
+	case 0x35:	return AND(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+
+	case 0x39:	return AND(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+
 	case 0x3d:	return AND(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+
+	case 0x3f:	return AND(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
 	case 0x4a:	return LSR_A(); break;
 	case 0x4b:	return PHK(); break;
