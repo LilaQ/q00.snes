@@ -492,6 +492,48 @@ u8 INY() {
 	return 2;
 }
 
+//	Arithmetic Shift Left
+u8 ASL_A(u8 cycles) {
+	if (regs.P.getAccuMemSize()) {
+		u8 val = regs.getAccumulator() & 0xff;
+		regs.P.setCarry(val >> 7);
+		regs.setAccumulator((u8)((val + val) & 0xff));
+		regs.P.setZero((regs.getAccumulator() & 0xff) == 0);
+		regs.P.setNegative((regs.getAccumulator() & 0xff) >> 7);
+	}
+	else {
+		u16 val = regs.getAccumulator();
+		regs.P.setCarry(val >> 15);
+		regs.setAccumulator((u16)(val + val));
+		regs.P.setZero(regs.getAccumulator() == 0);
+		regs.P.setNegative(regs.getAccumulator() >> 15);
+	}
+	regs.PC++;
+	return cycles;
+}
+u8 ASL(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(adr);
+		regs.P.setCarry(val >> 7);
+		writeToMem(val + val, adr);
+		regs.P.setZero((u8)(val + val) == 0);
+		regs.P.setNegative((val + val) >> 7);
+	}
+	else {
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		regs.P.setCarry(val >> 15);
+		writeToMem((val + val) & 0xff, adr);
+		writeToMem((val + val) >> 8, adr + 1);
+		regs.P.setZero((u16)(val + val) == 0);
+		regs.P.setNegative((u16)(val + val) >> 15);
+	}
+	regs.PC++;
+	return cycles;
+}
+
 //	Logical shit right
 u8 LSR_A() {
 	if (regs.P.getAccuMemSize()) {
@@ -1031,30 +1073,29 @@ u8 stepCPU() {
 	case 0x03:	return ORA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
 
 	case 0x05:	return ORA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
+	case 0x06:	return ASL(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0x07:	return ORA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x08:	return PHP(); break;
 	case 0x09:	return (regs.P.getAccuMemSize()) ? ORA(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : ORA(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+	case 0x0a:	return ASL_A(2); break;
 
 	case 0x0d:	return ORA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-
+	case 0x0e:	return ASL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
 	case 0x0f:	return ORA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
-
 	case 0x10:	return (regs.P.getAccuMemSize()) ? BPL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BPL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 	case 0x11:	return ORA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
 	case 0x12:	return ORA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x13:	return ORA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
 
 	case 0x15:	return ORA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
+	case 0x16:	return ASL(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0x17:	return ORA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x18:	return CLC(); break;
 	case 0x19:	return ORA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 
 	case 0x1d:	return ORA(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-
+	case 0x1e:	return ASL(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
 	case 0x1f:	return ORA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
-
 	case 0x20:	return JSR(ADDR_getAbsolute, 6); break;
 	case 0x21:	return AND(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x22:	return JSL(ADDR_getAbsoluteLong, 8); break;
