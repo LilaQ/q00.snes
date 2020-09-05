@@ -87,9 +87,9 @@ struct Registers
 				void setAccuMemSize(u8 val) {
 					M = val & 1;
 				}
-				void setIndexSize(u8 val, Registers* regs) {
+				void setIndexSize(bool val, Registers* regs) {
 					//	high bytes get reset on change from 8-bit to 16-bit or vice versa
-					X = val & 1;
+					X = val;
 					if (X) {
 						regs->clearXYhighBytesOnModeChange();
 					}

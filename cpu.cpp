@@ -199,15 +199,15 @@ u8 PLB() {
 //	reset status bits (reset all bits set in the immediate value)
 u8 REP() {
 	u8 v = readFromMem(regs.PC+1);
-	u8 N = regs.P.getNegative() & ~((v >> 7) & 1);
-	u8 V = regs.P.getOverflow() & ~((v >> 6) & 1);
-	u8 M = regs.P.getAccuMemSize() & ~((v >> 5) & 1);
-	u8 X = regs.P.getIndexSize() & ~((v >> 4) & 1);
-	u8 B = regs.P.getBreak() & ~((v >> 4) & 1);
-	u8 D = regs.P.getDecimal() & ~((v >> 3) & 1);
-	u8 I = regs.P.getIRQDisable() & ~((v >> 2) & 1);
-	u8 Z = regs.P.getZero() & ~((v >> 1) & 1);
-	u8 C = regs.P.getCarry() & ~(v & 1);
+	u8 N = (regs.P.getNegative() & ~((v >> 7) & 1)) > 0;
+	u8 V = (regs.P.getOverflow() & ~((v >> 6) & 1)) > 0;
+	u8 M = (regs.P.getAccuMemSize() & ~((v >> 5) & 1)) > 0;
+	u8 X = (regs.P.getIndexSize() & ~((v >> 4) & 1)) > 0;
+	u8 B = (regs.P.getBreak() & ~((v >> 4) & 1)) > 0;
+	u8 D = (regs.P.getDecimal() & ~((v >> 3) & 1)) > 0;
+	u8 I = (regs.P.getIRQDisable() & ~((v >> 2) & 1)) > 0;
+	u8 Z = (regs.P.getZero() & ~((v >> 1) & 1)) > 0;
+	u8 C = (regs.P.getCarry() & ~(v & 1)) > 0;
 
 	regs.P.setNegative(N);
 	regs.P.setOverflow(V);
@@ -232,15 +232,15 @@ u8 REP() {
 //	set status bits (set all bits set in the immediate value)
 u8 SEP() {
 	u8 v = readFromMem(regs.PC + 1);
-	u8 N = regs.P.getNegative() | ((v >> 7) & 1);
-	u8 V = regs.P.getOverflow() | ((v >> 6) & 1);
-	u8 M = regs.P.getAccuMemSize() | ((v >> 5) & 1);
-	u8 X = regs.P.getIndexSize() | ((v >> 4) & 1);
-	u8 B = regs.P.getBreak() | ((v >> 4) & 1);
-	u8 D = regs.P.getDecimal() | ((v >> 3) & 1);
-	u8 I = regs.P.getIRQDisable() | ((v >> 2) & 1);
-	u8 Z = regs.P.getZero() | ((v >> 1) & 1);
-	u8 C = regs.P.getCarry() | (v & 1);
+	u8 N = (regs.P.getNegative() | ((v >> 7) & 1)) > 0;
+	u8 V = (regs.P.getOverflow() | ((v >> 6) & 1)) > 0;
+	u8 M = (regs.P.getAccuMemSize() | ((v >> 5) & 1)) > 0;
+	u8 X = (regs.P.getIndexSize() | ((v >> 4) & 1)) > 0;
+	u8 B = (regs.P.getBreak() | ((v >> 4) & 1)) > 0;
+	u8 D = (regs.P.getDecimal() | ((v >> 3) & 1)) > 0;
+	u8 I = (regs.P.getIRQDisable() | ((v >> 2) & 1)) > 0;
+	u8 Z = (regs.P.getZero() | ((v >> 1) & 1)) > 0;
+	u8 C = (regs.P.getCarry() | (v & 1)) > 0;
 
 	regs.P.setNegative(N);
 	regs.P.setOverflow(V);
@@ -570,12 +570,32 @@ u8 DEY() {
 	return 2;
 }
 
+//	Increment (accumulator)
+u8 INC_A() {
+	if (regs.P.getAccuMemSize()) {
+		u8 val = regs.getAccumulator();
+		val++;
+		regs.setAccumulator(val);
+		regs.P.setNegative(val >> 7);
+		regs.P.setZero(val == 0);
+	}
+	else {
+		u16 val = regs.getAccumulator();
+		val++;
+		regs.setAccumulator(val);
+		regs.P.setNegative(val >> 15);
+		regs.P.setZero(val == 0);
+	}
+	regs.PC++;
+	return 2;
+}
+
 //	Increment
 u8 INC(u32(*f)(), u8 cycles) {
 	u32 adr = f();
 	if (regs.P.getAccuMemSize()) {
 		u8 val = readFromMem(adr);
-		val += 1;
+		val++;
 		writeToMem(val, adr);
 		regs.P.setNegative(val >> 7);
 		regs.P.setZero(val == 0);
@@ -584,8 +604,9 @@ u8 INC(u32(*f)(), u8 cycles) {
 		u8 lo = readFromMem(adr);
 		u8 hi = readFromMem(adr + 1);
 		u16 val = (hi << 8) | lo;
-		val += 1;
-		writeToMem(val, adr);
+		val++;
+		writeToMem(val & 0xff, adr);
+		writeToMem(val >> 8, adr + 1);
 		regs.P.setNegative(val >> 15);
 		regs.P.setZero(val == 0);
 	}
@@ -595,18 +616,32 @@ u8 INC(u32(*f)(), u8 cycles) {
 
 //	Increment X
 u8 INX() {
-	regs.setX((u16)(regs.getX() + 1));
-	regs.P.setZero(regs.getX() == 0);
-	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
+	if (regs.P.getIndexSize()) {
+		regs.setX((u8)((regs.getX() & 0xff) + 1));
+		regs.P.setZero((regs.getX() & 0xff) == 0);
+		regs.P.setNegative((regs.getX() & 0xff) >> 7);
+	}
+	else {
+		regs.setX((u16)(regs.getX() + 1));
+		regs.P.setZero(regs.getX() == 0);
+		regs.P.setNegative(regs.getX() >> 15);
+	}
 	regs.PC++;
 	return 2;
 }
 
 //	Increment Y
 u8 INY() {
-	regs.setY((u16)(regs.getY() + 1));
-	regs.P.setZero(regs.getY() == 0);
-	regs.P.setNegative(regs.getY() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
+	if (regs.P.getIndexSize()) {
+		regs.setY((u8)((regs.getY() & 0xff) + 1));
+		regs.P.setZero((regs.getY() & 0xff) == 0);
+		regs.P.setNegative((regs.getY() & 0xff) >> 7);
+	}
+	else {
+		regs.setY((u16)(regs.getY() + 1));
+		regs.P.setZero(regs.getY() == 0);
+		regs.P.setNegative(regs.getY() >> 15);
+	}
 	regs.PC++;
 	return 2;
 }
@@ -1326,6 +1361,7 @@ u8 stepCPU() {
 	case 0x17:	return ORA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x18:	return CLC(); break;
 	case 0x19:	return ORA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+	case 0x1a:	return INC_A(); break;
 
 	case 0x1c:	return TRB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
 	case 0x1d:	return ORA(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
@@ -1514,10 +1550,15 @@ u8 stepCPU() {
 
 	case 0xec:	return CPX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
 
+	case 0xee:	return INC(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
+
 	case 0xf0:	return (regs.P.getAccuMemSize()) ? BEQ(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BEQ(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+
+	case 0xf6:	return INC(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 			
 	case 0xfb:	return XCE(); break;
 	case 0xfc:	return JSR(ADDR_getAbsoluteIndexedIndirectX, 8); break;
+	case 0xfe:	return INC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
 
 		default:
 			printf("ERROR! Unimplemented opcode 0x%02x at address 0x%04x !\n", readFromMem(regs.PC), regs.PC);
