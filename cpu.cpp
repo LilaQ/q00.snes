@@ -1272,6 +1272,10 @@ u32 ADDR_getDirectPageIndexedX() {
 	regs.PC++;
 	return regs.getDirectPageRegister() | readFromMem(regs.PC) + regs.getX();
 }
+u32 ADDR_getDirectPageIndexedY() {
+	regs.PC++;
+	return regs.getDirectPageRegister() | readFromMem(regs.PC) + regs.getY();
+}
 u32 ADDR_getDirectPageIndirect() {
 	regs.PC++;
 	u8 dbr = regs.getDataBankRegister();
@@ -1485,21 +1489,37 @@ u8 stepCPU() {
 	case 0x9c:	return STZ(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 
 	case 0xa0:	return (regs.P.getIndexSize()) ? LDY(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDY(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
-
+	case 0xa1:	return LDA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xa2:	return (regs.P.getIndexSize()) ? LDX(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDX(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
-
+	case 0xa3:	return LDA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+	case 0xa4:	return LDY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 	case 0xa5:	return LDA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xa6:	return LDX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+	case 0xa7:	return LDA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
 	case 0xa9:	return (regs.P.getAccuMemSize()) ? LDA(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDA(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
 
 	case 0xab:	return PLB(); break;
+	case 0xac:	return LDY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+	case 0xad:	return LDA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+	case 0xae:	return LDX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+	case 0xaf:	return LDA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
 
 	case 0xb0:	return (regs.P.getAccuMemSize()) ? BCS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-
+	case 0xb1:	return LDA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+	case 0xb2:	return LDA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+	case 0xb3:	return LDA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+	case 0xb4:	return LDY(ADDR_getDirectPageIndexedX, 4 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+	case 0xb5:	return LDA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+	case 0xb6:	return LDX(ADDR_getDirectPageIndexedY, 4 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+	case 0xb7:	return LDA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xb8:	return CLV(); break;
+	case 0xb9:	return LDA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 
+	case 0xbc:	return LDY(ADDR_getAbsoluteIndexedX, 4 + regs.P.isXReset() + pageBoundaryCrossed()); break;
 	case 0xbd:	return LDA(ADDR_getAbsoluteIndexedX, 4 + pageBoundaryCrossed() + regs.P.isMReset()); break;
+	case 0xbe:	return LDX(ADDR_getAbsoluteIndexedY, 4 + regs.P.isXReset() + pageBoundaryCrossed()); break;
+	case 0xbf:	return LDA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
 	case 0xc0:	return (regs.P.getIndexSize()) ? CPY(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPY(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
 	case 0xc1:	return CMP(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
