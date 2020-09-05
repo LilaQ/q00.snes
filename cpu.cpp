@@ -412,6 +412,30 @@ u8 CPX(u32(*f)(), u8 cycles) {
 	return cycles;
 }
 
+//	Compare Y-Register with memory
+u8 CPY(u32(*f)(), u8 cycles) {
+	if (regs.P.getIndexSize()) {
+		u32 adr = f();
+		u8 m = readFromMem(adr);
+		u8 val = regs.getY() - m;
+		regs.P.setNegative(val >> 7);
+		regs.P.setZero(val == 0);
+		regs.P.setCarry(regs.getY() >= m);
+	}
+	else {
+		u32 adr = f();
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 m = (hi << 8) | lo;
+		u16 val = regs.getY() - m;
+		regs.P.setNegative(val >> 7);
+		regs.P.setZero(val == 0);
+		regs.P.setCarry(regs.getY() >= m);
+	}
+	regs.PC++;
+	return cycles;
+}
+
 //	Compare Accumulator with memory
 u8 CMP(u32(*f)(), u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
@@ -1321,6 +1345,7 @@ u8 stepCPU() {
 
 	case 0x82:	return (regs.P.getAccuMemSize()) ? BRL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BRL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 
+	case 0x84:	return STY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 	case 0x85:	return STA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x86:	return STX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 
@@ -1354,26 +1379,46 @@ u8 stepCPU() {
 
 	case 0xbd:	return LDA(ADDR_getAbsoluteIndexedX, 4 + pageBoundaryCrossed() + regs.P.isMReset()); break;
 
+	case 0xc0:	return (regs.P.getIndexSize()) ? CPY(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPY(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
+	case 0xc1:	return CMP(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xc2:	return REP(); break;
+	case 0xc3:	return CMP(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+	case 0xc4:	return CPY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+	case 0xc5:	return CMP(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
+	case 0xc7:	return CMP(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xc8:	return INY(); break;
 	case 0xc9:	return (regs.P.getAccuMemSize()) ? CMP(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : CMP(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
 
 	case 0xca:	return DEX(); break;
 
+	case 0xcc:	return CPY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
 	case 0xcd:	return CMP(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 
+	case 0xcf:	return CMP(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+
 	case 0xd0:	return (regs.P.getAccuMemSize()) ? BNE(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BNE(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+	case 0xd1:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+	case 0xd2:	return CMP(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+	case 0xd3:	return CMP(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
 
+	case 0xd5:	return CMP(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+
+	case 0xd7:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xd8:	return CLD(); break;
-
+	case 0xd9:	return CMP(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 	case 0xda:	return PHX(3 + regs.P.getIndexSize()); break;
 
 	case 0xdc:	return JMP(ADDR_getAbsoluteIndirectLong, 6); break;
+	case 0xdd:	return CMP(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+
+	case 0xdf:	return CMP(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
 	case 0xe0:	return (regs.P.getIndexSize()) ? CPX(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPX(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
 
 	case 0xe2:	return SEP(); break;
+
+	case 0xe4:	return CPX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 
 	case 0xe6:	return INC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 
