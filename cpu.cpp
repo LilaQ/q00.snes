@@ -1209,6 +1209,26 @@ u8 RTL(u8 cycles) {
 
 
 
+//		Block Move
+
+//	Block move next
+u16 MVN() {
+	u8 dst_bank = readFromMem(regs.PC + 1);
+	u8 src_bank = readFromMem(regs.PC + 2);
+	regs.setDataBankRegister(dst_bank);
+	u32 dst = (dst_bank << 16) | regs.getY();
+	u32 src = (src_bank << 16) | regs.getX();
+	u8 val = readFromMem(src);
+	writeToMem(val, dst);
+	regs.setAccumulator((u16)(regs.getAccumulator()-1));
+	regs.setX((u16)(regs.getX() + 1));
+	regs.setY((u16)(regs.getY() + 1));
+	if (regs.getAccumulator() == 0xffff)
+		regs.PC += 3;
+	return 7;
+}
+
+
 
 //		Addressing modes
 bool pbr = false;
@@ -1448,7 +1468,7 @@ u8 stepCPU() {
 	case 0x51:	return EOR(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
 	case 0x52:	return EOR(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x53:	return EOR(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-
+	case 0x54:	return MVN(); break;
 	case 0x55:	return EOR(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x56:	return LSR(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x57:	return EOR(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
