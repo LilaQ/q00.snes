@@ -688,7 +688,7 @@ u8 ASL(u32(*f)(), u8 cycles) {
 	return cycles;
 }
 
-//	Logical shit right
+//	Logical shift right
 u8 LSR_A() {
 	if (regs.P.getAccuMemSize()) {
 		regs.P.setNegative(0);
@@ -704,6 +704,30 @@ u8 LSR_A() {
 	}
 	regs.PC++;
 	return 2;
+}
+
+//	Logical shift right
+u8 LSR(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(adr);
+		regs.P.setNegative(0);
+		regs.P.setCarry(val & 1);
+		writeToMem((u8)((val & 0xff) >> 1), adr);
+		regs.P.setZero((u8)((regs.getAccumulator() & 0xff) >> 1) == 0);
+	}
+	else {
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		regs.P.setNegative(0);
+		regs.P.setCarry(val & 1);
+		writeToMem(((val & 0xffff) >> 1) & 0xff, adr);
+		writeToMem(((val & 0xffff) >> 1) >> 8, adr + 1);
+		regs.P.setZero((u8)((regs.getAccumulator() & 0xffff) >> 1) == 0);
+	}
+	regs.PC++;
+	return cycles;
 }
 
 //	Rotate Left
@@ -1409,7 +1433,7 @@ u8 stepCPU() {
 	case 0x43:	return EOR(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
 
 	case 0x45:	return EOR(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
+	case 0x46:	return LSR(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x47:	return EOR(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x48:	return PHA(3 + regs.P.isMReset()); break;
 	case 0x49:	return (regs.P.getAccuMemSize()) ? EOR(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : EOR(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
@@ -1417,7 +1441,7 @@ u8 stepCPU() {
 	case 0x4b:	return PHK(); break;
 	case 0x4c:	return JMP(ADDR_getAbsolute, 3); break;
 	case 0x4d:	return EOR(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-
+	case 0x4e:	return LSR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
 	case 0x4f:	return EOR(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
 
 	case 0x50:	return (regs.P.getAccuMemSize()) ? BVC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
@@ -1426,7 +1450,7 @@ u8 stepCPU() {
 	case 0x53:	return EOR(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
 
 	case 0x55:	return EOR(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
+	case 0x56:	return LSR(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x57:	return EOR(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x58:	return CLI(); break;
 	case 0x59:	return EOR(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
@@ -1434,6 +1458,7 @@ u8 stepCPU() {
 	case 0x5b:	return TCD(); break;
 	case 0x5c:	return JML(ADDR_getLong, 4); break;
 	case 0x5d:	return EOR(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+	case 0x5e:	return LSR(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 	case 0x5f:	return EOR(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 	case 0x60:	return RTS(6); break;
 	case 0x61:	return ADC(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
