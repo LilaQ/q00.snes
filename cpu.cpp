@@ -484,6 +484,50 @@ u8 ORA(u32(*f)(), u8 cycles) {
 	return cycles;
 }
 
+//	Decrement (accumulator)
+u8 DEC_A() {
+	if (regs.P.getAccuMemSize()) {
+		u8 val = regs.getAccumulator();
+		val--;
+		regs.setAccumulator(val);
+		regs.P.setNegative(val >> 7);
+		regs.P.setZero(val == 0);
+	}
+	else {
+		u16 val = regs.getAccumulator();
+		val--;
+		regs.setAccumulator(val);
+		regs.P.setNegative(val >> 15);
+		regs.P.setZero(val == 0);
+	}
+	regs.PC++;
+	return 2;
+}
+
+//	Decrement
+u8 DEC(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(adr);
+		val--;
+		writeToMem(val, adr);
+		regs.P.setNegative(val >> 7);
+		regs.P.setZero(val == 0);
+	}
+	else {
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		val--;
+		writeToMem(val & 0xff, adr);
+		writeToMem(val >> 8, adr + 1);
+		regs.P.setNegative(val >> 15);
+		regs.P.setZero(val == 0);
+	}
+	regs.PC++;
+	return cycles;
+}
+
 //	Decrement X
 u8 DEX() {
 	regs.setX((u16)(regs.getX()-1));
@@ -1289,6 +1333,7 @@ u8 stepCPU() {
 	case 0x37:	return AND(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x38:	return SEC(2); break;
 	case 0x39:	return AND(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+	case 0x3a:	return DEC_A(); break;
 
 	case 0x3c:	return BIT(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed(), false); break;
 	case 0x3d:	return AND(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
@@ -1385,7 +1430,7 @@ u8 stepCPU() {
 	case 0xc3:	return CMP(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
 	case 0xc4:	return CPY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 	case 0xc5:	return CMP(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
+	case 0xc6:	return DEC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0xc7:	return CMP(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xc8:	return INY(); break;
 	case 0xc9:	return (regs.P.getAccuMemSize()) ? CMP(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : CMP(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
@@ -1394,7 +1439,7 @@ u8 stepCPU() {
 
 	case 0xcc:	return CPY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
 	case 0xcd:	return CMP(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-
+	case 0xce:	return DEC(ADDR_getAbsolute, + 6 + (2 * regs.P.isMReset())); break;
 	case 0xcf:	return CMP(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
 
 	case 0xd0:	return (regs.P.getAccuMemSize()) ? BNE(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BNE(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
@@ -1403,7 +1448,7 @@ u8 stepCPU() {
 	case 0xd3:	return CMP(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
 
 	case 0xd5:	return CMP(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
+	case 0xd6:	return DEC(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0xd7:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0xd8:	return CLD(); break;
 	case 0xd9:	return CMP(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
@@ -1411,7 +1456,7 @@ u8 stepCPU() {
 
 	case 0xdc:	return JMP(ADDR_getAbsoluteIndirectLong, 6); break;
 	case 0xdd:	return CMP(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-
+	case 0xde:	return DEC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
 	case 0xdf:	return CMP(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
 	case 0xe0:	return (regs.P.getIndexSize()) ? CPX(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPX(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
