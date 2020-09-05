@@ -678,6 +678,51 @@ u8 BIT(u32(*f)(), u8 cycles, bool is_immediate) {
 	return cycles;
 }
 
+//	Test and Reset memory bits against accumulator
+u8 TRB(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(adr);
+		regs.P.setZero((val & (regs.getAccumulator() & 0xff)) == 0);
+		u8 res = val & ~(regs.getAccumulator() & 0xff);
+		writeToMem(res, adr);
+	}
+	else {
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		regs.P.setZero((val & regs.getAccumulator()) == 0);
+		u16 res = val & ~regs.getAccumulator();
+		writeToMem(res & 0xff, adr);
+		writeToMem(res >> 8, adr + 1);
+	}
+	regs.PC++;
+	return cycles;
+}
+
+//	Test and Set Memory Bits agains accumulator
+u8 TSB(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(adr);
+		regs.P.setZero((val & (regs.getAccumulator() & 0xff)) == 0);
+		u8 res = val | (regs.getAccumulator() & 0xff);
+		writeToMem(res, adr);
+	}
+	else {
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		regs.P.setZero((val & regs.getAccumulator()) == 0);
+		u16 res = val | regs.getAccumulator();
+		writeToMem(res & 0xff, adr);
+		writeToMem(res >> 8, adr + 1);
+	}
+	regs.PC++;
+	return cycles;
+}
+
+
 
 //		Transfers
 
@@ -1071,7 +1116,7 @@ u8 stepCPU() {
 	case 0x01:	return ORA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
 	case 0x03:	return ORA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
-
+	case 0x04:	return TSB(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0x05:	return ORA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x06:	return ASL(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0x07:	return ORA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
@@ -1079,6 +1124,7 @@ u8 stepCPU() {
 	case 0x09:	return (regs.P.getAccuMemSize()) ? ORA(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : ORA(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
 	case 0x0a:	return ASL_A(2); break;
 
+	case 0x0c:	return TSB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
 	case 0x0d:	return ORA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 	case 0x0e:	return ASL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
 	case 0x0f:	return ORA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
@@ -1086,13 +1132,14 @@ u8 stepCPU() {
 	case 0x11:	return ORA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
 	case 0x12:	return ORA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x13:	return ORA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-
+	case 0x14:	return TRB(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0x15:	return ORA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x16:	return ASL(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 	case 0x17:	return ORA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x18:	return CLC(); break;
 	case 0x19:	return ORA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 
+	case 0x1c:	return TRB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
 	case 0x1d:	return ORA(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 	case 0x1e:	return ASL(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
 	case 0x1f:	return ORA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
@@ -1116,13 +1163,14 @@ u8 stepCPU() {
 	case 0x31:	return AND(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
 	case 0x32:	return AND(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x33:	return AND(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-
+	case 0x34:	return BIT(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero(), false); break;
 	case 0x35:	return AND(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x36:	return ROL(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x37:	return AND(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x38:	return SEC(2); break;
 	case 0x39:	return AND(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
+	case 0x3c:	return BIT(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed(), false); break;
 	case 0x3d:	return AND(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x3e:	return ROL(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 	case 0x3f:	return AND(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
@@ -1177,7 +1225,7 @@ u8 stepCPU() {
 	case 0x86:	return STX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 
 	case 0x88:	return DEY(); break;
-	//case 0x89:	return (regs.P.getAccuMemSize()) ? BIT(ADDR_getImmediate, 2, 2) : BIT(ADDR_getImmediate, 3, 3); break;
+	case 0x89:	return (regs.P.getAccuMemSize()) ? BIT(ADDR_getImmediate_8, 2 + regs.P.isMReset(), true) : BIT(ADDR_getImmediate_16, 2 + regs.P.isMReset(), true); break;
 
 	case 0x8c:	return STY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
 	case 0x8d:	return STA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;

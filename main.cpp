@@ -17,6 +17,7 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "CPUADC.sfc";		//	-	Passed
 //string filename = "CPUAND.sfc";		//	-	Passed
 //string filename = "CPUASL.sfc";		//	-	Passed
+string filename = "CPUBIT.sfc";
 //string filename = "CPUJMP.sfc";		//	-	Passed
 //string filename = "CPUROL.sfc";		//	-	Passed
 //string filename = "CPUROR.sfc";		//	-	Passed
