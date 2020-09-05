@@ -207,6 +207,7 @@ u8 REP() {
 	u8 D = regs.P.getDecimal() & ~((v >> 3) & 1);
 	u8 I = regs.P.getIRQDisable() & ~((v >> 2) & 1);
 	u8 Z = regs.P.getZero() & ~((v >> 1) & 1);
+	u8 C = regs.P.getCarry() & ~(v & 1);
 
 	regs.P.setNegative(N);
 	regs.P.setOverflow(V);
@@ -222,6 +223,7 @@ u8 REP() {
 	regs.P.setDecimal(D);
 	regs.P.setIRQDisable(I);
 	regs.P.setZero(Z);
+	regs.P.setCarry(C);
 
 	regs.PC += 2;
 	return 3;
@@ -238,6 +240,7 @@ u8 SEP() {
 	u8 D = regs.P.getDecimal() | ((v >> 3) & 1);
 	u8 I = regs.P.getIRQDisable() | ((v >> 2) & 1);
 	u8 Z = regs.P.getZero() | ((v >> 1) & 1);
+	u8 C = regs.P.getCarry() | (v & 1);
 
 	regs.P.setNegative(N);
 	regs.P.setOverflow(V);
@@ -253,6 +256,7 @@ u8 SEP() {
 	regs.P.setDecimal(D);
 	regs.P.setIRQDisable(I);
 	regs.P.setZero(Z);
+	regs.P.setCarry(C);
 
 	regs.PC += 2;
 	return 3;
@@ -472,6 +476,29 @@ u8 DEY() {
 	regs.P.setNegative(regs.getY() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
 	regs.PC++;
 	return 2;
+}
+
+//	Increment
+u8 INC(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(adr);
+		val += 1;
+		writeToMem(val, adr);
+		regs.P.setNegative(val >> 7);
+		regs.P.setZero(val == 0);
+	}
+	else {
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		val += 1;
+		writeToMem(val, adr);
+		regs.P.setNegative(val >> 15);
+		regs.P.setZero(val == 0);
+	}
+	regs.PC++;
+	return cycles;
 }
 
 //	Increment X
@@ -883,10 +910,79 @@ u8 BPL(u32(*f)(), u8 cycles) {
 	return cycles + branch_taken;
 }
 
+//	Branch if minus
+u8 BMI(u32(*f)(), u8 cycles) {
+	u8 branch_taken = 0;
+	i8 offset = readFromMem(f());
+	regs.PC++;
+	if (regs.P.getNegative() == 1) {
+		regs.PC += offset;
+		branch_taken = 1;
+	}
+	return cycles + branch_taken;
+}
+
+//	Branch if carry clear
+u8 BCC(u32(*f)(), u8 cycles) {
+	u8 branch_taken = 0;
+	i8 offset = readFromMem(f());
+	regs.PC++;
+	if (regs.P.getCarry() == 0) {
+		regs.PC += offset;
+		branch_taken = 1;
+	}
+	return cycles + branch_taken;
+}
+
+//	Branch if carry set
+u8 BCS(u32(*f)(), u8 cycles) {
+	u8 branch_taken = 0;
+	i8 offset = readFromMem(f());
+	regs.PC++;
+	if (regs.P.getCarry() == 1) {
+		regs.PC += offset;
+		branch_taken = 1;
+	}
+	return cycles + branch_taken;
+}
+
+//	Branch if overflow clear
+u8 BVC(u32(*f)(), u8 cycles) {
+	u8 branch_taken = 0;
+	i8 offset = readFromMem(f());
+	regs.PC++;
+	if (regs.P.getOverflow() == 0) {
+		regs.PC += offset;
+		branch_taken = 1;
+	}
+	return cycles + branch_taken;
+}
+
+//	Branch if overflow set
+u8 BVS(u32(*f)(), u8 cycles) {
+	u8 branch_taken = 0;
+	i8 offset = readFromMem(f());
+	regs.PC++;
+	if (regs.P.getOverflow() == 1) {
+		regs.PC += offset;
+		branch_taken = 1;
+	}
+	return cycles + branch_taken;
+}
+
 //	Branch always
 u8 BRA(u32(*f)(), u8 cycles) {
 	i8 offset = readFromMem(f());
 	regs.PC++;
+	regs.PC += offset;
+	return cycles;
+}
+
+//	Branch always long
+u8 BRL(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	i8 offset = (readFromMem(adr + 1) << 8) | readFromMem(adr);
+	regs.PC += 2;
 	regs.PC += offset;
 	return cycles;
 }
@@ -1159,7 +1255,7 @@ u8 stepCPU() {
 	case 0x2d:	return AND(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 	case 0x2e:	return ROL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
 	case 0x2f:	return AND(ADDR_getLong, 5 + regs.P.isMReset()); break;
-
+	case 0x30:	return (regs.P.getAccuMemSize()) ? BMI(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BMI(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 	case 0x31:	return AND(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
 	case 0x32:	return AND(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x33:	return AND(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
@@ -1180,6 +1276,8 @@ u8 stepCPU() {
 	case 0x4a:	return LSR_A(); break;
 	case 0x4b:	return PHK(); break;
 	case 0x4c:	return JMP(ADDR_getAbsolute, 3); break;
+
+	case 0x50:	return (regs.P.getAccuMemSize()) ? BVC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 
 	case 0x58:	return CLI(); break;
 
@@ -1203,7 +1301,7 @@ u8 stepCPU() {
 	case 0x6d:	return ADC(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 	case 0x6e:	return ROR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
 	case 0x6f:	return ADC(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
-
+	case 0x70:	return (regs.P.getAccuMemSize()) ? BVS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 	case 0x71:	return ADC(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
 	case 0x72:	return ADC(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x73:	return ADC(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
@@ -1221,6 +1319,8 @@ u8 stepCPU() {
 
 	case 0x80:	return (regs.P.getAccuMemSize()) ? BRA(ADDR_getImmediate_8, 3 + regs.P.getEmulation()) : BRA(ADDR_getImmediate_16, 3 + regs.P.getEmulation()); break;
 
+	case 0x82:	return (regs.P.getAccuMemSize()) ? BRL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BRL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+
 	case 0x85:	return STA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 	case 0x86:	return STX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
 
@@ -1230,6 +1330,8 @@ u8 stepCPU() {
 	case 0x8c:	return STY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
 	case 0x8d:	return STA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 	case 0x8e:	return STX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+
+	case 0x90:	return (regs.P.getAccuMemSize()) ? BCC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 
 	case 0x9a:	return TXS(); break;
 
@@ -1245,6 +1347,8 @@ u8 stepCPU() {
 	case 0xa9:	return (regs.P.getAccuMemSize()) ? LDA(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDA(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
 
 	case 0xab:	return PLB(); break;
+
+	case 0xb0:	return (regs.P.getAccuMemSize()) ? BCS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
 
 	case 0xb8:	return CLV(); break;
 
@@ -1270,6 +1374,8 @@ u8 stepCPU() {
 	case 0xe0:	return (regs.P.getIndexSize()) ? CPX(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPX(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
 
 	case 0xe2:	return SEP(); break;
+
+	case 0xe6:	return INC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
 
 	case 0xe8:	return INX(); break;
 
