@@ -9,6 +9,25 @@ typedef uint32_t	u32;
 
 struct Status;
 
+struct Interrupts
+{
+public:
+	static u8 const NMI = 0b10;
+	static u8 const IRQ = 0b01;
+	//u8 interrupt_value = 0;
+	//	TODO remove static NMI
+	u8 interrupt_value = NMI;
+	void set(u8 mask) {
+		interrupt_value |= mask;
+	}
+	u8 get() {
+		return (NMI << 1) | IRQ;
+	}
+	bool is(u8 mask) {
+		return (interrupt_value & mask) > 0;
+	}
+};
+
 struct Registers
 {
 	private:
@@ -234,7 +253,6 @@ struct Registers
 };
 
 
-
 u8 stepCPU();
-void resetCPU(u16 reset_vector);
+void resetCPU();
 void togglePause();

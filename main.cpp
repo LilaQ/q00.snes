@@ -26,10 +26,18 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "CPUJMP.sfc";		//	-	Passed
 //string filename = "CPULDR.sfc";		//	-	Passed
 //string filename = "CPULSR.sfc";		//	-	Passed
-string filename = "CPUMOV.sfc";
+//string filename = "CPUMOV.sfc";		//	-	Passed
+//string filename = "CPUMSC.sfc";		//	-	Passed (still need to test STP with built-in reset-button though)
+//string filename = "CPUORA.sfc";		//	-	Passed
+//string filename = "CPUPHL.sfc";		//	-	Passed
+//string filename = "CPUPSR.sfc";		//	-	Passed
+//string filename = "CPURET.sfc";		//	-	Passed
 //string filename = "CPUROL.sfc";		//	-	Passed
 //string filename = "CPUROR.sfc";		//	-	Passed
-//string filename = "CPUORA.sfc";		//	-	Passed
+//string filename = "CPUSBC.sfc";		//	-	Passed
+string filename = "CPUSTR.sfc";		//	-	Untested
+//string filename = "CPUTRN.sfc";		//	-	Untested
+
 
 //string filename = "smw.smc";
 bool unpaused = true;

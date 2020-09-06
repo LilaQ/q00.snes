@@ -23,7 +23,7 @@ vector<u8> memory(0xffffff);
 vector<u8> cartridge_memory;
 
 void reset() {
-	resetCPU( cartridge.emu_reset_vector );
+	resetCPU();
 }
 
 std::vector<u8> readFile(const char* filename)
@@ -126,7 +126,7 @@ void loadROM(string filename) {
 	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
 	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
 
-	resetCPU( cartridge.emu_reset_vector );
+	resetCPU(  );
 }
 
 u16 NMI = 0xc2;

@@ -9,9 +9,19 @@ typedef uint16_t	u16;
 typedef uint32_t	u32;
 
 Registers regs;
+Interrupts interrupts;
+bool CPU_STOPPED = false;
 
-void resetCPU(u16 reset_vector) {
-	regs.PC = reset_vector;
+void resetCPU() {
+	CPU_STOPPED = false;
+	regs.P.setEmulation(1);
+	regs.setDirectPageRegister(0x00);
+	regs.setSP((regs.getSP() & 0xff) | 0x0100);
+	regs.P.setAccuMemSize(1);
+	regs.P.setIndexSize(1, &regs);
+	u8 lo = readFromMem(0xfffc);
+	u8 hi = readFromMem(0xfffd);
+	regs.PC = (hi << 8) | lo;
 	regs.resetStackPointer();
 	//printf("Reset CPU, starting at PC: %x\n", regs.PC);
 }
@@ -125,11 +135,57 @@ u8 PHK() {
 	return 3;
 }
 
+//	push data bank register to stack
+u8 PHB() {
+	pushToStack(regs.getDataBankRegister());
+	regs.PC += 1;
+	return 3;
+}
+
+//	push direct page register to stack
+u8 PHD() {
+	pushToStack((u8)(regs.getDirectPageRegister() >> 8));
+	pushToStack((u8)(regs.getDirectPageRegister() & 0xff));
+	regs.PC += 1;
+	return 4;
+}
+
 //	push processor status register to stack
 u8 PHP() {
 	pushToStack(regs.P.getByte());
 	regs.PC += 1;
 	return 3;
+}
+
+//	push effective absolute address
+u8 PEA(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	pushToStack((u8)(adr >> 8));
+	pushToStack((u8)(adr & 0xff));
+	regs.PC++;
+	return cycles;
+}
+
+//	push effectice indirect address
+u8 PEI(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	adr |= regs.getDataBankRegister();
+	pushToStack((u8)(adr >> 8));
+	pushToStack((u8)(adr & 0xff));
+	regs.PC++;
+	return cycles;
+}
+
+//	push effective PC relative indirect address
+u8 PER(u8 cycles) {
+	regs.PC += 3;
+	u8 lo = readFromMem(regs.PC - 2);
+	u8 hi = readFromMem(regs.PC - 1);
+	u16 adr = (hi << 8) | lo;
+	u16 res = regs.PC + adr;
+	pushToStack((u8)(res >> 8));
+	pushToStack((u8)(res & 0xff));
+	return cycles;
 }
 
 //	push accumulator to stack
@@ -173,14 +229,14 @@ u8 PLA(u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
 		regs.setAccumulator(pullFromStack());
 		regs.P.setNegative((regs.getAccumulator() & 0x80) == 0x80);
-		regs.P.setZero(regs.getAccumulator() == 0x00);
+		regs.P.setZero((regs.getAccumulator() & 0xff) == 0x00);
 	}
 	else {
 		u8 lo = pullFromStack();
 		u8 hi = pullFromStack();
 		u16 val = (hi << 8) | lo;
 		regs.setAccumulator(val);
-		regs.P.setNegative((regs.getAccumulator() & 0x80) == 0x80);
+		regs.P.setNegative((regs.getAccumulator() & 0x8000) == 0x8000);
 		regs.P.setZero(regs.getAccumulator() == 0x00);
 	}
 	regs.PC++;
@@ -194,6 +250,69 @@ u8 PLB() {
 	regs.P.setZero(regs.getDataBankRegister() == 0x00);
 	regs.PC += 1;
 	return 4;
+}
+
+//	pull direct page register from stack
+u8 PLD() {
+	u8 lo = pullFromStack();
+	u8 hi = pullFromStack();
+	regs.setDirectPageRegister((hi << 8) | lo);
+	regs.P.setNegative((regs.getDataBankRegister() & 0x8000) == 0x8000);
+	regs.P.setZero(regs.getDataBankRegister() == 0x0000);
+	regs.PC++;
+	return 5;
+}
+
+//	pull status from stack
+u8 PLP() {
+	if (regs.P.getEmulation()) {
+		u8 val = pullFromStack();
+		regs.P.setByte(val);
+		regs.P.setAccuMemSize(1);
+		regs.P.setIndexSize(1, &regs);
+	}
+	else {
+		u8 val = pullFromStack();
+		regs.P.setByte(val);
+	}
+	regs.PC++;
+	return 4;
+}
+
+//	pull X-register from stack
+u8 PLX() {
+	if (regs.P.getIndexSize()) {
+		regs.setX(pullFromStack());
+		regs.P.setNegative((regs.getX() & 0x80) == 0x80);
+		regs.P.setZero(regs.getX() == 0x00);
+	}
+	else {
+		u8 lo = pullFromStack();
+		u8 hi = pullFromStack();
+		regs.setX((u16)((hi << 8) | lo));
+		regs.P.setNegative((regs.getX() & 0x8000) == 0x8000);
+		regs.P.setZero(regs.getX() == 0x0000);
+	}
+	regs.PC++;
+	return 4 + regs.P.isXReset();
+}
+
+//	pull Y-register from stack
+u8 PLY() {
+	if (regs.P.getIndexSize()) {
+		regs.setY(pullFromStack());
+		regs.P.setNegative((regs.getY() & 0x80) == 0x80);
+		regs.P.setZero(regs.getY() == 0x00);
+	}
+	else {
+		u8 lo = pullFromStack();
+		u8 hi = pullFromStack();
+		regs.setY((u16)((hi << 8) | lo));
+		regs.P.setNegative((regs.getY() & 0x8000) == 0x8000);
+		regs.P.setZero(regs.getY() == 0x0000);
+	}
+	regs.PC++;
+	return 4 + regs.P.isXReset();
 }
 
 //	reset status bits (reset all bits set in the immediate value)
@@ -267,6 +386,13 @@ u8 SEC(u8 cycles) {
 	regs.P.setCarry(1);
 	regs.PC++;
 	return cycles;
+}
+
+//	Set Decimal Flag
+u8 SED() {
+	regs.P.setDecimal(1);
+	regs.PC++;
+	return 2;
 }
 
 //	Clear Overflow Flag
@@ -354,6 +480,73 @@ u8 ADC(u32(*f)(), u8 cycles) {
 		regs.P.setOverflow((~(regs.getAccumulator() ^ val) & (regs.getAccumulator() ^ res) & 0x8000) == 0x8000);
 		if (regs.P.getDecimal() && res > 0x9fff) {
 			res += 0x6000;
+		}
+		regs.P.setCarry(res > 0xffff);
+		regs.P.setZero((u16)(res) == 0);
+		regs.P.setNegative((res & 0x8000) == 0x8000);
+		regs.setAccumulator((u16)res);
+	}
+	regs.PC++;
+	return cycles;
+}
+
+//	Subtract with borrow
+u8 SBC(u32(*f)(), u8 cycles) {
+	if (regs.P.getAccuMemSize()) {
+		u8 val = readFromMem(f());
+		val = ~val;
+		u32 res = 0;
+		if (regs.P.getDecimal()) {
+			res = (regs.getAccumulator() & 0xf) + (val & 0x0f) + regs.P.getCarry();
+			if (res <= 0x0f) {
+				res -= 0x06;
+			}
+			regs.P.setCarry(res > 0x0f);
+			res = (regs.getAccumulator() & 0xf0) + (val & 0xf0) + (regs.P.getCarry() << 4) + (res & 0x0f);
+		}
+		else {
+			res = (regs.getAccumulator() & 0xff) + val + regs.P.getCarry();
+		}
+		regs.P.setOverflow((~(regs.getAccumulator() ^ val) & (regs.getAccumulator() ^ res) & 0x80) == 0x80);
+		if (regs.P.getDecimal() && res <= 0xff) {
+			res -= 0x60;
+		}
+		regs.P.setCarry(res > 0xff);
+		regs.P.setZero((u8)res == 0);
+		regs.P.setNegative((res & 0x80) == 0x80);
+		regs.setAccumulator((u8)(res & 0xff));
+	}
+	else {
+		u16 adr = f();
+		u8 lo = readFromMem(adr);
+		u8 hi = readFromMem(adr + 1);
+		u16 val = (hi << 8) | lo;
+		val = ~val;
+		u32 res = 0;
+		if (regs.P.getDecimal()) {
+			res = (regs.getAccumulator() & 0x000f) + (val & 0x000f) + regs.P.getCarry();
+			if (res <= 0x000f) {
+				res -= 0x0006;
+			}
+			regs.P.setCarry(res > 0x000f);
+			res = (regs.getAccumulator() & 0x00f0) + (val & 0x00f0) + (regs.P.getCarry() << 4) + (res & 0x000f);
+			if (res <= 0x00ff) {
+				res -= 0x0060;
+			}
+			regs.P.setCarry(res > 0x00ff);
+			res = (regs.getAccumulator() & 0x0f00) + (val & 0x0f00) + (regs.P.getCarry() << 8) + (res & 0x00ff);
+			if (res <= 0x0fff) {
+				res -= 0x0600;
+			}
+			regs.P.setCarry(res > 0x0fff);
+			res = (regs.getAccumulator() & 0xf000) + (val & 0xf000) + (regs.P.getCarry() << 12) + (res & 0x0fff);
+		}
+		else {
+			res = regs.getAccumulator() + val + regs.P.getCarry();
+		}
+		regs.P.setOverflow((~(regs.getAccumulator() ^ val) & (regs.getAccumulator() ^ res) & 0x8000) == 0x8000);
+		if (regs.P.getDecimal() && res <= 0xffff) {
+			res -= 0x6000;
 		}
 		regs.P.setCarry(res > 0xffff);
 		regs.P.setZero((u16)(res) == 0);
@@ -1228,6 +1421,152 @@ u16 MVN() {
 	return 7;
 }
 
+//	Block move prev
+u16 MVP() {
+	u8 dst_bank = readFromMem(regs.PC + 1);
+	u8 src_bank = readFromMem(regs.PC + 2);
+	regs.setDataBankRegister(dst_bank);
+	u32 dst = (dst_bank << 16) | regs.getY();
+	u32 src = (src_bank << 16) | regs.getX();
+	u8 val = readFromMem(src);
+	writeToMem(val, dst);
+	regs.setAccumulator((u16)(regs.getAccumulator() - 1));
+	regs.setX((u16)(regs.getX() - 1));
+	regs.setY((u16)(regs.getY() - 1));
+	if (regs.getAccumulator() == 0xffff)
+		regs.PC += 3;
+	return 7;
+}
+
+
+
+//		Misc
+
+//	Unimplemented (does nothing)
+u8 WDM() {
+	regs.PC += 2;
+	return 2;
+}
+
+//	Break
+u8 BRK() {
+	if (regs.P.getEmulation()) {
+		regs.PC += 2;
+		pushToStack((u8)(regs.PC >> 8));
+		pushToStack((u8)(regs.PC & 0xff));
+		regs.P.setBreak(1);
+		pushToStack(regs.P.getByte());
+		regs.P.setIRQDisable(1);
+		regs.P.setDecimal(0);
+		u8 lo = readFromMem(0xfffe);
+		u8 hi = readFromMem(0xffff);
+		regs.PC = (hi << 8) | lo;
+	}
+	else {
+		pushToStack(regs.getProgramBankRegister());
+		regs.PC += 2;
+		pushToStack((u8)(regs.PC >> 8));
+		pushToStack((u8)(regs.PC & 0xff));
+		regs.P.setBreak(1);
+		pushToStack(regs.P.getByte());
+		regs.setProgramBankRegister(0x00);
+		regs.P.setIRQDisable(1);
+		regs.P.setDecimal(0);
+		u8 lo = readFromMem(0xffe6);
+		u8 hi = readFromMem(0xffe7);
+		regs.PC = (hi << 8) | lo;
+	}
+	return 7 + regs.P.getEmulation();
+}
+
+//	Co-copressor enable
+u8 COP() {
+	if (regs.P.getEmulation()) {
+		regs.PC += 2;
+		pushToStack((u8)(regs.PC >> 8));
+		pushToStack((u8)(regs.PC & 0xff));
+		pushToStack(regs.P.getByte());
+		regs.P.setIRQDisable(1);
+		u8 lo = readFromMem(0xfff4);
+		u8 hi = readFromMem(0xfff5);
+		regs.PC = (hi << 8) | lo;
+		regs.P.setDecimal(0);
+	}
+	else {
+		pushToStack(regs.getProgramBankRegister());
+		regs.PC += 2;
+		pushToStack((u8)(regs.PC >> 8));
+		pushToStack((u8)(regs.PC & 0xff));
+		pushToStack(regs.P.getByte());
+		regs.P.setIRQDisable(1);
+		regs.setProgramBankRegister(0x00);
+		u8 lo = readFromMem(0xffe4);
+		u8 hi = readFromMem(0xffe5);
+		regs.PC = (hi << 8) | lo;
+		regs.P.setDecimal(0);
+	}
+	return 7 + regs.P.getEmulation();
+}
+
+//	Return from interrupt
+u8 RTI() {
+	if (regs.P.getEmulation()) {
+		regs.P.setByte(pullFromStack());
+		regs.P.setAccuMemSize(1);
+		regs.P.setIndexSize(1, &regs);
+		u8 lo = pullFromStack();
+		u8 hi = pullFromStack();
+		regs.PC = (hi << 8) | lo;
+	}
+	else {
+		u8 p = pullFromStack();
+		regs.P.setByte(p);
+		u8 lo = pullFromStack();
+		u8 hi = pullFromStack();
+		regs.PC = (hi << 8) | lo;
+		regs.setProgramBankRegister(pullFromStack());
+	}
+	return 6 + regs.P.getEmulation();
+}
+
+//	Wait for interrupt
+u8 WAI() {
+	if (interrupts.is(Interrupts::NMI)) {
+		if (regs.P.getEmulation()) {
+			regs.PC++;
+			pushToStack((u8)(regs.PC >> 8));
+			pushToStack((u8)(regs.PC & 0xff));
+			pushToStack(regs.P.getByte());
+			regs.P.setIRQDisable(1);
+			u8 lo = readFromMem(0xfffa);
+			u8 hi = readFromMem(0xfffb);
+			regs.PC = (hi << 8) | lo;
+			regs.P.setDecimal(0);
+		}
+		else {
+			pushToStack(regs.getProgramBankRegister());
+			regs.PC++;
+			pushToStack((u8)(regs.PC >> 8));
+			pushToStack((u8)(regs.PC & 0xff));
+			pushToStack(regs.P.getByte());
+			regs.P.setIRQDisable(1);
+			regs.setProgramBankRegister(0x00);
+			u8 lo = readFromMem(0xffea);
+			u8 hi = readFromMem(0xffeb);
+			regs.PC = (hi << 8) | lo;
+			regs.P.setDecimal(0);
+		}
+		return 3;
+	}
+	return 0;
+}
+
+//	Stop the processor
+u8 STP() {
+	CPU_STOPPED = true;
+	return 3;
+}
+
 
 
 //		Addressing modes
@@ -1381,255 +1720,273 @@ u8 stepCPU() {
 	string flags = byteToBinaryString(regs.P.getByte());
 	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", readFromMem(regs.PC, regs.getDataBankRegister()), readFromMem(regs.PC+1, regs.getDataBankRegister()), readFromMem(regs.PC+2, regs.getDataBankRegister()), readFromMem(regs.PC + 3, regs.getDataBankRegister()), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
 	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.getProgramBankRegister(), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str());
-	
-	switch (readFromMem((regs.getProgramBankRegister() << 16) | regs.PC)) {
+	if (!CPU_STOPPED) {
+		switch (readFromMem((regs.getProgramBankRegister() << 16) | regs.PC)) {
 
-	case 0x01:	return ORA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x00:	return BRK(); break;
+		case 0x01:	return ORA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x02:	return COP(); break;
+		case 0x03:	return ORA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0x04:	return TSB(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0x05:	return ORA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x06:	return ASL(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0x07:	return ORA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x08:	return PHP(); break;
+		case 0x09:	return (regs.P.getAccuMemSize()) ? ORA(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : ORA(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+		case 0x0a:	return ASL_A(2); break;
+		case 0x0b:	return PHD(); break;
+		case 0x0c:	return TSB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
+		case 0x0d:	return ORA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0x0e:	return ASL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
+		case 0x0f:	return ORA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0x10:	return (regs.P.getAccuMemSize()) ? BPL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BPL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0x11:	return ORA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0x12:	return ORA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x13:	return ORA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0x14:	return TRB(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0x15:	return ORA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x16:	return ASL(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0x17:	return ORA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x18:	return CLC(); break;
+		case 0x19:	return ORA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x1a:	return INC_A(); break;
 
-	case 0x03:	return ORA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
-	case 0x04:	return TSB(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-	case 0x05:	return ORA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x06:	return ASL(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-	case 0x07:	return ORA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x08:	return PHP(); break;
-	case 0x09:	return (regs.P.getAccuMemSize()) ? ORA(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : ORA(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
-	case 0x0a:	return ASL_A(2); break;
+		case 0x1c:	return TRB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
+		case 0x1d:	return ORA(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x1e:	return ASL(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
+		case 0x1f:	return ORA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0x20:	return JSR(ADDR_getAbsolute, 6); break;
+		case 0x21:	return AND(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x22:	return JSL(ADDR_getAbsoluteLong, 8); break;
+		case 0x23:	return AND(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0x24:	return BIT(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero(), false); break;
+		case 0x25:	return AND(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x26:	return ROL(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x27:	return AND(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x28:	return PLP(); break;
+		case 0x29:	return (regs.P.getAccuMemSize()) ? AND(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : AND(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+		case 0x2a:	return ROL_A(2); break;
+		case 0x2b:	return PLD(); break;
+		case 0x2c:	return BIT(ADDR_getAbsolute, 4, false); break;
+		case 0x2d:	return AND(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0x2e:	return ROL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
+		case 0x2f:	return AND(ADDR_getLong, 5 + regs.P.isMReset()); break;
+		case 0x30:	return (regs.P.getAccuMemSize()) ? BMI(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BMI(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0x31:	return AND(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0x32:	return AND(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x33:	return AND(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0x34:	return BIT(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero(), false); break;
+		case 0x35:	return AND(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x36:	return ROL(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x37:	return AND(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x38:	return SEC(2); break;
+		case 0x39:	return AND(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x3a:	return DEC_A(); break;
 
-	case 0x0c:	return TSB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
-	case 0x0d:	return ORA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0x0e:	return ASL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
-	case 0x0f:	return ORA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
-	case 0x10:	return (regs.P.getAccuMemSize()) ? BPL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BPL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-	case 0x11:	return ORA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
-	case 0x12:	return ORA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x13:	return ORA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-	case 0x14:	return TRB(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-	case 0x15:	return ORA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x16:	return ASL(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-	case 0x17:	return ORA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x18:	return CLC(); break;
-	case 0x19:	return ORA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x1a:	return INC_A(); break;
+		case 0x3c:	return BIT(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed(), false); break;
+		case 0x3d:	return AND(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x3e:	return ROL(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x3f:	return AND(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0x40:	return RTI(); break;
+		case 0x41:	return EOR(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x42:	return WDM(); break;
+		case 0x43:	return EOR(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0x44:	return MVP(); break;
+		case 0x45:	return EOR(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x46:	return LSR(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x47:	return EOR(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x48:	return PHA(3 + regs.P.isMReset()); break;
+		case 0x49:	return (regs.P.getAccuMemSize()) ? EOR(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : EOR(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+		case 0x4a:	return LSR_A(); break;
+		case 0x4b:	return PHK(); break;
+		case 0x4c:	return JMP(ADDR_getAbsolute, 3); break;
+		case 0x4d:	return EOR(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0x4e:	return LSR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
+		case 0x4f:	return EOR(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0x50:	return (regs.P.getAccuMemSize()) ? BVC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0x51:	return EOR(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0x52:	return EOR(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x53:	return EOR(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0x54:	return MVN(); break;
+		case 0x55:	return EOR(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x56:	return LSR(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x57:	return EOR(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x58:	return CLI(); break;
+		case 0x59:	return EOR(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x5a:	return PHY(3 + regs.P.getIndexSize()); break;
+		case 0x5b:	return TCD(); break;
+		case 0x5c:	return JML(ADDR_getLong, 4); break;
+		case 0x5d:	return EOR(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x5e:	return LSR(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x5f:	return EOR(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0x60:	return RTS(6); break;
+		case 0x61:	return ADC(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x62:	return PER(6); break;
+		case 0x63:	return ADC(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
 
-	case 0x1c:	return TRB(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
-	case 0x1d:	return ORA(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x1e:	return ASL(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
-	case 0x1f:	return ORA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
-	case 0x20:	return JSR(ADDR_getAbsolute, 6); break;
-	case 0x21:	return AND(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x22:	return JSL(ADDR_getAbsoluteLong, 8); break;
-	case 0x23:	return AND(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
-	case 0x24:	return BIT(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero(), false); break;
-	case 0x25:	return AND(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x26:	return ROL(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x27:	return AND(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x65:	return ADC(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x66:	return ROR(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x67:	return ADC(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x68:	return PLA(4 + regs.P.isMReset()); break;
+		case 0x69:	return (regs.P.getAccuMemSize()) ? ADC(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : ADC(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+		case 0x6a:	return ROR_A(2); break;
+		case 0x6b:	return RTL(6); break;
+		case 0x6c:	return JMP(ADDR_getAbsoluteIndirect, 5); break;
+		case 0x6d:	return ADC(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0x6e:	return ROR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
+		case 0x6f:	return ADC(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0x70:	return (regs.P.getAccuMemSize()) ? BVS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0x71:	return ADC(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0x72:	return ADC(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x73:	return ADC(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
 
-	case 0x29:	return (regs.P.getAccuMemSize()) ? AND(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : AND(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
-	case 0x2a:	return ROL_A(2); break;
+		case 0x75:	return ADC(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x76:	return ROR(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x77:	return ADC(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x78:	return SEI(); break;
+		case 0x79:	return ADC(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x7a:	return PLY(); break;
 
-	case 0x2c:	return BIT(ADDR_getAbsolute, 4, false); break;
-	case 0x2d:	return AND(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0x2e:	return ROL(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
-	case 0x2f:	return AND(ADDR_getLong, 5 + regs.P.isMReset()); break;
-	case 0x30:	return (regs.P.getAccuMemSize()) ? BMI(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BMI(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-	case 0x31:	return AND(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
-	case 0x32:	return AND(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x33:	return AND(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-	case 0x34:	return BIT(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero(), false); break;
-	case 0x35:	return AND(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x36:	return ROL(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x37:	return AND(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x38:	return SEC(2); break;
-	case 0x39:	return AND(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x3a:	return DEC_A(); break;
 
-	case 0x3c:	return BIT(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed(), false); break;
-	case 0x3d:	return AND(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x3e:	return ROL(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x3f:	return AND(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0x7c:	return JMP(ADDR_getAbsoluteIndexedIndirectX, 5); break;
+		case 0x7d:	return ADC(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x7e:	return ROR(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x7f:	return ADC(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
-	case 0x41:	return EOR(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x80:	return (regs.P.getAccuMemSize()) ? BRA(ADDR_getImmediate_8, 3 + regs.P.getEmulation()) : BRA(ADDR_getImmediate_16, 3 + regs.P.getEmulation()); break;
+		case 0x81:	return STA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x82:	return (regs.P.getAccuMemSize()) ? BRL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BRL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0x83:	return STA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0x84:	return STY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0x85:	return STA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x86:	return STX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0x87:	return STA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x88:	return DEY(); break;
+		case 0x89:	return (regs.P.getAccuMemSize()) ? BIT(ADDR_getImmediate_8, 2 + regs.P.isMReset(), true) : BIT(ADDR_getImmediate_16, 2 + regs.P.isMReset(), true); break;
 
-	case 0x43:	return EOR(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0x8b:	return PHB(); break;
+		case 0x8c:	return STY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+		case 0x8d:	return STA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0x8e:	return STX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+		case 0x8f:	return STA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0x90:	return (regs.P.getAccuMemSize()) ? BCC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0x91:	return STA(ADDR_getDirectPageIndirectIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x92:	return STA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x93:	return STA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
 
-	case 0x45:	return EOR(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x46:	return LSR(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x47:	return EOR(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x48:	return PHA(3 + regs.P.isMReset()); break;
-	case 0x49:	return (regs.P.getAccuMemSize()) ? EOR(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : EOR(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
-	case 0x4a:	return LSR_A(); break;
-	case 0x4b:	return PHK(); break;
-	case 0x4c:	return JMP(ADDR_getAbsolute, 3); break;
-	case 0x4d:	return EOR(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0x4e:	return LSR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
-	case 0x4f:	return EOR(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0x95:	return STA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
-	case 0x50:	return (regs.P.getAccuMemSize()) ? BVC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-	case 0x51:	return EOR(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
-	case 0x52:	return EOR(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x53:	return EOR(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-	case 0x54:	return MVN(); break;
-	case 0x55:	return EOR(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x56:	return LSR(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x57:	return EOR(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x58:	return CLI(); break;
-	case 0x59:	return EOR(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x5a:	return PHY(3 + regs.P.getIndexSize()); break;
-	case 0x5b:	return TCD(); break;
-	case 0x5c:	return JML(ADDR_getLong, 4); break;
-	case 0x5d:	return EOR(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x5e:	return LSR(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x5f:	return EOR(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
-	case 0x60:	return RTS(6); break;
-	case 0x61:	return ADC(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0x97:	return STA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
-	case 0x63:	return ADC(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0x99:	return STA(ADDR_getAbsoluteIndexedY, 5 + regs.P.isMReset()); break;
+		case 0x9a:	return TXS(); break;
 
-	case 0x65:	return ADC(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x66:	return ROR(ADDR_getDirectPage, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x67:	return ADC(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x68:	return PLA(4 + regs.P.isMReset()); break;
-	case 0x69:	return (regs.P.getAccuMemSize()) ? ADC(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : ADC(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
-	case 0x6a:	return ROR_A(2); break;
-	case 0x6b:	return RTL(6); break;
-	case 0x6c:	return JMP(ADDR_getAbsoluteIndirect, 5); break;
-	case 0x6d:	return ADC(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0x6e:	return ROR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
-	case 0x6f:	return ADC(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
-	case 0x70:	return (regs.P.getAccuMemSize()) ? BVS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BVS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-	case 0x71:	return ADC(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
-	case 0x72:	return ADC(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x73:	return ADC(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0x9c:	return STZ(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0x9d:	return STA(ADDR_getAbsoluteIndexedX, 5 + regs.P.isMReset()); break;
 
-	case 0x75:	return ADC(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x76:	return ROR(ADDR_getDirectPageIndexedX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x77:	return ADC(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x78:	return SEI(); break;
-	case 0x79:	return ADC(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0x9f:	return STA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
-	case 0x7c:	return JMP(ADDR_getAbsoluteIndexedIndirectX, 5); break;
-	case 0x7d:	return ADC(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x7e:	return ROR(ADDR_getAbsoluteIndexedX, 7 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0x7f:	return ADC(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0xa0:	return (regs.P.getIndexSize()) ? LDY(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDY(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
+		case 0xa1:	return LDA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xa2:	return (regs.P.getIndexSize()) ? LDX(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDX(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
+		case 0xa3:	return LDA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0xa4:	return LDY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xa5:	return LDA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xa6:	return LDX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xa7:	return LDA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
 
-	case 0x80:	return (regs.P.getAccuMemSize()) ? BRA(ADDR_getImmediate_8, 3 + regs.P.getEmulation()) : BRA(ADDR_getImmediate_16, 3 + regs.P.getEmulation()); break;
+		case 0xa9:	return (regs.P.getAccuMemSize()) ? LDA(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDA(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
 
-	case 0x82:	return (regs.P.getAccuMemSize()) ? BRL(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BRL(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0xab:	return PLB(); break;
+		case 0xac:	return LDY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+		case 0xad:	return LDA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0xae:	return LDX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+		case 0xaf:	return LDA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0xb0:	return (regs.P.getAccuMemSize()) ? BCS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0xb1:	return LDA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0xb2:	return LDA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xb3:	return LDA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0xb4:	return LDY(ADDR_getDirectPageIndexedX, 4 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xb5:	return LDA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xb6:	return LDX(ADDR_getDirectPageIndexedY, 4 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xb7:	return LDA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xb8:	return CLV(); break;
+		case 0xb9:	return LDA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 
-	case 0x84:	return STY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-	case 0x85:	return STA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0x86:	return STX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xbc:	return LDY(ADDR_getAbsoluteIndexedX, 4 + regs.P.isXReset() + pageBoundaryCrossed()); break;
+		case 0xbd:	return LDA(ADDR_getAbsoluteIndexedX, 4 + pageBoundaryCrossed() + regs.P.isMReset()); break;
+		case 0xbe:	return LDX(ADDR_getAbsoluteIndexedY, 4 + regs.P.isXReset() + pageBoundaryCrossed()); break;
+		case 0xbf:	return LDA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0xc0:	return (regs.P.getIndexSize()) ? CPY(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPY(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
+		case 0xc1:	return CMP(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xc2:	return REP(); break;
+		case 0xc3:	return CMP(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0xc4:	return CPY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xc5:	return CMP(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xc6:	return DEC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0xc7:	return CMP(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xc8:	return INY(); break;
+		case 0xc9:	return (regs.P.getAccuMemSize()) ? CMP(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : CMP(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+		case 0xca:	return DEX(); break;
+		case 0xcb:	return WAI(); break;
+		case 0xcc:	return CPY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+		case 0xcd:	return CMP(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0xce:	return DEC(ADDR_getAbsolute, +6 + (2 * regs.P.isMReset())); break;
+		case 0xcf:	return CMP(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0xd0:	return (regs.P.getAccuMemSize()) ? BNE(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BNE(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0xd1:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0xd2:	return CMP(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xd3:	return CMP(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0xd4:	return PEI(ADDR_getDirectPageIndirect, 6 + regs.isDPLowNotZero()); break;
+		case 0xd5:	return CMP(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xd6:	return DEC(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0xd7:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xd8:	return CLD(); break;
+		case 0xd9:	return CMP(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0xda:	return PHX(3 + regs.P.getIndexSize()); break;
+		case 0xdb:	return STP(); break;
+		case 0xdc:	return JMP(ADDR_getAbsoluteIndirectLong, 6); break;
+		case 0xdd:	return CMP(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0xde:	return DEC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
+		case 0xdf:	return CMP(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
+		case 0xe0:	return (regs.P.getIndexSize()) ? CPX(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPX(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
+		case 0xe1:	return SBC(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xe2:	return SEP(); break;
+		case 0xe3:	return SBC(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
+		case 0xe4:	return CPX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
+		case 0xe5:	return SBC(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xe6:	return INC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0xe7:	return SBC(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xe8:	return INX(); break;
+		case 0xe9:	return (regs.P.getAccuMemSize()) ? SBC(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : SBC(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
+		case 0xea:	return NOP(); break;
 
-	case 0x88:	return DEY(); break;
-	case 0x89:	return (regs.P.getAccuMemSize()) ? BIT(ADDR_getImmediate_8, 2 + regs.P.isMReset(), true) : BIT(ADDR_getImmediate_16, 2 + regs.P.isMReset(), true); break;
-
-	case 0x8c:	return STY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
-	case 0x8d:	return STA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0x8e:	return STX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
-
-	case 0x90:	return (regs.P.getAccuMemSize()) ? BCC(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCC(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-
-	case 0x9a:	return TXS(); break;
-
-	case 0x9c:	return STZ(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-
-	case 0xa0:	return (regs.P.getIndexSize()) ? LDY(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDY(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
-	case 0xa1:	return LDA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xa2:	return (regs.P.getIndexSize()) ? LDX(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDX(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
-	case 0xa3:	return LDA(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
-	case 0xa4:	return LDY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-	case 0xa5:	return LDA(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xa6:	return LDX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-	case 0xa7:	return LDA(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-
-	case 0xa9:	return (regs.P.getAccuMemSize()) ? LDA(ADDR_getImmediate_8, 2 + regs.P.isXReset()) : LDA(ADDR_getImmediate_16, 2 + regs.P.isXReset()); break;
-
-	case 0xab:	return PLB(); break;
-	case 0xac:	return LDY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
-	case 0xad:	return LDA(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0xae:	return LDX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
-	case 0xaf:	return LDA(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
-
-	case 0xb0:	return (regs.P.getAccuMemSize()) ? BCS(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BCS(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-	case 0xb1:	return LDA(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
-	case 0xb2:	return LDA(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xb3:	return LDA(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-	case 0xb4:	return LDY(ADDR_getDirectPageIndexedX, 4 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-	case 0xb5:	return LDA(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xb6:	return LDX(ADDR_getDirectPageIndexedY, 4 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-	case 0xb7:	return LDA(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xb8:	return CLV(); break;
-	case 0xb9:	return LDA(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-
-	case 0xbc:	return LDY(ADDR_getAbsoluteIndexedX, 4 + regs.P.isXReset() + pageBoundaryCrossed()); break;
-	case 0xbd:	return LDA(ADDR_getAbsoluteIndexedX, 4 + pageBoundaryCrossed() + regs.P.isMReset()); break;
-	case 0xbe:	return LDX(ADDR_getAbsoluteIndexedY, 4 + regs.P.isXReset() + pageBoundaryCrossed()); break;
-	case 0xbf:	return LDA(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
-
-	case 0xc0:	return (regs.P.getIndexSize()) ? CPY(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPY(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
-	case 0xc1:	return CMP(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xc2:	return REP(); break;
-	case 0xc3:	return CMP(ADDR_getStackRelative, 4 + regs.P.isMReset()); break;
-	case 0xc4:	return CPY(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-	case 0xc5:	return CMP(ADDR_getDirectPage, 3 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xc6:	return DEC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-	case 0xc7:	return CMP(ADDR_getDirectPageIndirectLong, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xc8:	return INY(); break;
-	case 0xc9:	return (regs.P.getAccuMemSize()) ? CMP(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : CMP(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
-
-	case 0xca:	return DEX(); break;
-
-	case 0xcc:	return CPY(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
-	case 0xcd:	return CMP(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
-	case 0xce:	return DEC(ADDR_getAbsolute, + 6 + (2 * regs.P.isMReset())); break;
-	case 0xcf:	return CMP(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
-
-	case 0xd0:	return (regs.P.getAccuMemSize()) ? BNE(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BNE(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-	case 0xd1:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
-	case 0xd2:	return CMP(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xd3:	return CMP(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
-
-	case 0xd5:	return CMP(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xd6:	return DEC(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-	case 0xd7:	return CMP(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
-	case 0xd8:	return CLD(); break;
-	case 0xd9:	return CMP(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0xda:	return PHX(3 + regs.P.getIndexSize()); break;
-
-	case 0xdc:	return JMP(ADDR_getAbsoluteIndirectLong, 6); break;
-	case 0xdd:	return CMP(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
-	case 0xde:	return DEC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
-	case 0xdf:	return CMP(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
-
-	case 0xe0:	return (regs.P.getIndexSize()) ? CPX(ADDR_getImmediate_8, 2 + regs.P.getIndexSize()) : CPX(ADDR_getImmediate_16, 2 + regs.P.getIndexSize()); break;
-
-	case 0xe2:	return SEP(); break;
-
-	case 0xe4:	return CPX(ADDR_getDirectPage, 3 + regs.P.isXReset() + regs.isDPLowNotZero()); break;
-
-	case 0xe6:	return INC(ADDR_getDirectPage, 5 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-
-	case 0xe8:	return INX(); break;
-
-	case 0xea:	return NOP(); break;
-
-	case 0xec:	return CPX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
-
-	case 0xee:	return INC(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
-
-	case 0xf0:	return (regs.P.getAccuMemSize()) ? BEQ(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BEQ(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
-
-	case 0xf6:	return INC(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
-			
-	case 0xfb:	return XCE(); break;
-	case 0xfc:	return JSR(ADDR_getAbsoluteIndexedIndirectX, 8); break;
-	case 0xfe:	return INC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
+		case 0xec:	return CPX(ADDR_getAbsolute, 4 + regs.P.isXReset()); break;
+		case 0xed:	return SBC(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
+		case 0xee:	return INC(ADDR_getAbsolute, 6 + (2 * regs.P.isMReset())); break;
+		case 0xef:	return SBC(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
+		case 0xf0:	return (regs.P.getAccuMemSize()) ? BEQ(ADDR_getImmediate_8, 2 + regs.P.getEmulation()) : BEQ(ADDR_getImmediate_16, 2 + regs.P.getEmulation()); break;
+		case 0xf1:	return SBC(ADDR_getDirectPageIndirectIndexedY, 5 + regs.P.isMReset() + regs.isDPLowNotZero() + pageBoundaryCrossed()); break;
+		case 0xf2:	return SBC(ADDR_getDirectPageIndirect, 5 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xf3:	return SBC(ADDR_getStackRelativeIndirectIndexedY, 7 + regs.P.isMReset()); break;
+		case 0xf4:	return PEA(ADDR_getAbsolute, 5); break;
+		case 0xf5:	return SBC(ADDR_getDirectPageIndexedX, 4 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xf6:	return INC(ADDR_getDirectPageIndexedX, 6 + (2 * regs.P.isMReset()) + regs.isDPLowNotZero()); break;
+		case 0xf7:	return SBC(ADDR_getDirectPageIndirectLongIndexedY, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
+		case 0xf8:	return SED(); break;
+		case 0xf9:	return SBC(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0xfa:	return PLX(); break;
+		case 0xfb:	return XCE(); break;
+		case 0xfc:	return JSR(ADDR_getAbsoluteIndexedIndirectX, 8); break;
+		case 0xfd:	return SBC(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
+		case 0xfe:	return INC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
+		case 0xff:	return SBC(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;
 
 		default:
 			printf("ERROR! Unimplemented opcode 0x%02x at address 0x%04x !\n", readFromMem(regs.PC), regs.PC);
 			std::exit(1);
 			break;
+		}
 	}
-	
 	return 0;
 }
