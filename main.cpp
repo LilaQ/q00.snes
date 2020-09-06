@@ -35,8 +35,8 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "CPUROL.sfc";		//	-	Passed
 //string filename = "CPUROR.sfc";		//	-	Passed
 //string filename = "CPUSBC.sfc";		//	-	Passed
-string filename = "CPUSTR.sfc";		//	-	Untested
-//string filename = "CPUTRN.sfc";		//	-	Untested
+//string filename = "CPUSTR.sfc";		//	-	Passed
+string filename = "CPUTRN.sfc";		//	-	Untested
 
 
 //string filename = "smw.smc";

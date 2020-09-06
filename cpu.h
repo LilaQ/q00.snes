@@ -166,7 +166,7 @@ struct Registers
 			A_lo = val;
 		}
 		u16 getAccumulator() {
-			//if (!P.getAccuMemSize()) {
+			//if (!P.getEmulation()) {
 				return (A_hi << 8) | A_lo;
 			//}
 			//return A_lo;
@@ -180,7 +180,7 @@ struct Registers
 			X_lo = val;
 		}
 		u16 getX() {
-			if (!P.getIndexSize()) {
+			if (!P.getIndexSize() && !P.getEmulation()) {
 				return (X_hi << 8) | X_lo;
 			}
 			return X_lo;
@@ -194,7 +194,7 @@ struct Registers
 			Y_lo = val;
 		}
 		u16 getY() {
-			if (!P.getIndexSize()) {
+			if (!P.getIndexSize() && !P.getEmulation()) {
 				return (Y_hi << 8) | Y_lo;
 			}
 			return Y_lo;
@@ -206,7 +206,7 @@ struct Registers
 		}
 		u16 getSP() {
 			if (P.getEmulation()) {
-				return 0x100 | (SP & 0xff);
+				SP = 0x100 | (SP & 0xff);
 			}
 			return SP;
 		}
