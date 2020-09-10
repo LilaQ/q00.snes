@@ -202,62 +202,24 @@ public:
 		return to_string(header_version);
 	}
 
-	////	vectors
-	//u16 getCOPVectorNative() {
-	//	return native_cop_vector;
-	//}
-	//u16 getBRKVectorNative() {
-	//	return native_brk_vector;
-	//}
-	//u16 getABORTVectorNative() {
-	//	return native_abort_vector;
-	//}
-	//u16 getNMIVectorNative() {
-	//	return native_nmi_vector;
-	//}
-	//u16 getIRQVectorNative() {
-	//	return native_irq_vector;
-	//}
-	//u16 getCOPVectorEmulation() {
-	//	return emu_cop_vector;
-	//}
-	//u16 getABORTVectorEmulation() {
-	//	return emu_abort_vector;
-	//}
-	//u16 getNMIVectorEmulation() {
-	//	return emu_nmi_vector;
-	//}
-	//u16 getRESETVectorEmulation() {
-	//	return emu_reset_vector;
-	//}
-	//u16 getIRQBRKVectorEmulation() {
-	//	return emu_irq_brk_vector;
-	//}
 };
 
+//	vectors
+static const u16 VECTOR_NATIVE_COP = 0xffe4;
+static const u16 VECTOR_NATIVE_BRK = 0xffe6;
+static const u16 VECTOR_NATIVE_ABORT = 0xffe8;
+static const u16 VECTOR_NATIVE_NMI = 0xffea;
+static const u16 VECTOR_NATIVE_IRQ = 0xffee;
+static const u16 VECTOR_EMU_COP = 0xfff4;
+static const u16 VECTOR_EMU_ABORT = 0xfff8;
+static const u16 VECTOR_EMU_NMI = 0xfffa;
+static const u16 VECTOR_EMU_RESET = 0xfffc;
+static const u16 VECTOR_EMU_IRQBRK = 0xfffe;
+
+//	base methods
 void reset();
 void loadROM(string filename);
-unsigned char readFromMem(u32 adr);
+u8 readFromMem(u32 adr);
 void writeToMem(u8 val, u32 adr);
-
-//	Addressing modes (6502)
-u16 getImmediate(u16 adr);
-u16 getDirectpage(u16 adr);
-u16 getDirectpageXIndex(u16 adr, u8 X);
-u16 getDirectpageYIndex(u16 adr, u8 Y);
-u16 getIndirect(u16 adr);
-u16 getIndirectXIndex(u16 adr, u8 X);
-u16 getIndirectYIndex(u16 adr, u8 Y);
-u16 getAbsolute(u16 adr);
-u16 getAbsoluteXIndex(u16 adr, u8 X);
-u16 getAbsoluteYIndex(u16 adr, u8 Y);
-
-//	Addressing modes (65816)
-u16 getStackRelative();
-u16 getStackRelativeIndirectIndexedWithY();
-u16 getBlockMove();
-u16 getAbsoluteLong();
-u16 getAbsoluteLongIndexedWithX();
-u16 getAbsoluteIndirectLong();
-u16 getDirectPageIndirectLong();
-u16 getDirectPageIndirectLongIndexedWithY();
+void startDMA();
+void startHDMA();

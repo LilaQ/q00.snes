@@ -19,11 +19,16 @@ void resetCPU() {
 	regs.setSP((regs.getSP() & 0xff) | 0x0100);
 	regs.P.setAccuMemSize(1);
 	regs.P.setIndexSize(1, &regs);
-	u8 lo = readFromMem(0xfffc);
-	u8 hi = readFromMem(0xfffd);
+	u8 lo = readFromMem(VECTOR_EMU_RESET);
+	u8 hi = readFromMem(VECTOR_EMU_RESET + 1);
 	regs.PC = (hi << 8) | lo;
 	regs.resetStackPointer();
 	//printf("Reset CPU, starting at PC: %x\n", regs.PC);
+}
+
+//		DEBUG
+u16 getPC() {
+	return regs.PC;
 }
 
 
@@ -1619,8 +1624,8 @@ u8 BRK() {
 		pushToStack(regs.P.getByte());
 		regs.P.setIRQDisable(1);
 		regs.P.setDecimal(0);
-		u8 lo = readFromMem(0xfffe);
-		u8 hi = readFromMem(0xffff);
+		u8 lo = readFromMem(VECTOR_EMU_IRQBRK);
+		u8 hi = readFromMem(VECTOR_EMU_IRQBRK + 1);
 		regs.PC = (hi << 8) | lo;
 	}
 	else {
@@ -1633,8 +1638,8 @@ u8 BRK() {
 		regs.setProgramBankRegister(0x00);
 		regs.P.setIRQDisable(1);
 		regs.P.setDecimal(0);
-		u8 lo = readFromMem(0xffe6);
-		u8 hi = readFromMem(0xffe7);
+		u8 lo = readFromMem(VECTOR_NATIVE_BRK);
+		u8 hi = readFromMem(VECTOR_NATIVE_BRK + 1);
 		regs.PC = (hi << 8) | lo;
 	}
 	return 7 + regs.P.getEmulation();
@@ -1648,8 +1653,8 @@ u8 COP() {
 		pushToStack((u8)(regs.PC & 0xff));
 		pushToStack(regs.P.getByte());
 		regs.P.setIRQDisable(1);
-		u8 lo = readFromMem(0xfff4);
-		u8 hi = readFromMem(0xfff5);
+		u8 lo = readFromMem(VECTOR_EMU_COP);
+		u8 hi = readFromMem(VECTOR_EMU_COP + 1);
 		regs.PC = (hi << 8) | lo;
 		regs.P.setDecimal(0);
 	}
@@ -1661,8 +1666,8 @@ u8 COP() {
 		pushToStack(regs.P.getByte());
 		regs.P.setIRQDisable(1);
 		regs.setProgramBankRegister(0x00);
-		u8 lo = readFromMem(0xffe4);
-		u8 hi = readFromMem(0xffe5);
+		u8 lo = readFromMem(VECTOR_NATIVE_COP);
+		u8 hi = readFromMem(VECTOR_NATIVE_COP + 1);
 		regs.PC = (hi << 8) | lo;
 		regs.P.setDecimal(0);
 	}
@@ -1699,8 +1704,8 @@ u8 WAI() {
 			pushToStack((u8)(regs.PC & 0xff));
 			pushToStack(regs.P.getByte());
 			regs.P.setIRQDisable(1);
-			u8 lo = readFromMem(0xfffa);
-			u8 hi = readFromMem(0xfffb);
+			u8 lo = readFromMem(VECTOR_EMU_NMI);
+			u8 hi = readFromMem(VECTOR_EMU_NMI + 1);
 			regs.PC = (hi << 8) | lo;
 			regs.P.setDecimal(0);
 		}
@@ -1712,8 +1717,8 @@ u8 WAI() {
 			pushToStack(regs.P.getByte());
 			regs.P.setIRQDisable(1);
 			regs.setProgramBankRegister(0x00);
-			u8 lo = readFromMem(0xffea);
-			u8 hi = readFromMem(0xffeb);
+			u8 lo = readFromMem(VECTOR_NATIVE_NMI);
+			u8 hi = readFromMem(VECTOR_NATIVE_NMI + 1);
 			regs.PC = (hi << 8) | lo;
 			regs.P.setDecimal(0);
 		}
@@ -1880,7 +1885,7 @@ bool pageBoundaryCrossed() {
 u8 stepCPU() {
 	string flags = byteToBinaryString(regs.P.getByte());
 	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", readFromMem(regs.PC, regs.getDataBankRegister()), readFromMem(regs.PC+1, regs.getDataBankRegister()), readFromMem(regs.PC+2, regs.getDataBankRegister()), readFromMem(regs.PC + 3, regs.getDataBankRegister()), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.getProgramBankRegister(), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str());
+	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.getProgramBankRegister(), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str());
 	if (!CPU_STOPPED) {
 		switch (readFromMem((regs.getProgramBankRegister() << 16) | regs.PC)) {
 

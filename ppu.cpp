@@ -16,14 +16,12 @@
 using namespace::std;
 
 //	init PPU
-unsigned char *_VRAM[0x4000];	//	16 kbytes
-unsigned char pVRAM[0x4000];		
-unsigned char OAM[0x100];		//	256 bytes
-const int FB_SIZE = 256 * 224 * 4;
+u16 VRAM[0x8000];	//	64 kbytes
+const int FB_SIZE = 256 * 239 * 4;
 SDL_Renderer *renderer, *renderer_nt, *renderer_oam;
 SDL_Window *window, *window_nt, *window_oam;
 SDL_Texture *texture, *texture_nt, *texture_oam;
-unsigned char framebuffer[FB_SIZE];		//	4 bytes per pixel, RGBA24
+u8 framebuffer[FB_SIZE];
 
 void initPPU(string filename) {
 
@@ -53,11 +51,40 @@ void initPPU(string filename) {
 	DRAW FRAME
 */
 void drawFrame() {
-	SDL_UpdateTexture(texture, NULL, framebuffer, 256 * sizeof(unsigned char) * 4);
+	SDL_UpdateTexture(texture, NULL, framebuffer, 256 * sizeof(u8) * 4);
 	SDL_RenderCopy(renderer, texture, NULL, NULL);
 	SDL_RenderPresent(renderer);
+	//printf("drawFrame\n");
+}
+
+void writeToFB(u16 x, u16 y, u32 v) {
+	framebuffer[y * 4 * 256 + x * 4] = v >> 16;
+	framebuffer[y * 4 * 256 + x * 4 + 1] = v >> 8 & 0xff;
+	framebuffer[y * 4 * 256 + x * 4 + 2] = v & 0xff;
+	framebuffer[y * 4 * 256 + x * 4 + 3] = 0xff;
 }
 
 void stepPPU() {
+	for (u16 a = 0x0000; a < 0x3a0; a++) {
+		u16 tile_id = VRAM[0x7c00 + a];
+		u16 tile_address = tile_id * 8;
+		for (int i = 0; i < 8; i++) {
+			const u8 b_lo = VRAM[tile_address + i] >> 8;
+			const u8 b_hi = VRAM[tile_address + i] & 0xff;
+			for (int j = 0; j < 8; j++) {
+				u8 v = (((b_lo >> (7 - j)) & 1) + (2 * ((b_hi >> (7 - j)) & 1))) > 0;
+				writeToFB(a % 32 * 8 + j, a / 32 * 8 + i, (v) ? 0xffffff : 0x0000ff);
+			}
+		}
+	}
+}
 
+
+void writeToVRAM(u16 val, u16 adr) {
+	//printf("VRAM Write to %x with val %x\n", adr, val);
+	VRAM[adr & 0x7fff] = val;
+}
+
+u16 readFromVRAM(u16 adr) {
+	return VRAM[adr & 0x7fff];
 }

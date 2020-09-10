@@ -256,3 +256,4 @@ struct Registers
 u8 stepCPU();
 void resetCPU();
 void togglePause();
+u16 getPC();
