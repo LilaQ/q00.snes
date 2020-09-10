@@ -268,7 +268,12 @@ void writeToMem(u8 val, u32 fulladr) {
 				memory[0x2116] = _t & 0xff;
 				memory[0x2117] = _t >> 8;
 			}
-			writeToVRAM(val, _adr);
+			if (adr == 0x2118) {
+				writeToVRAMlow(val, _adr);
+			}
+			else {
+				writeToVRAMhigh(val, _adr);
+			}
 			break;
 		}
 		case 0x2122:			//	PPU - CGDATA - Palette CGRAM Data Write (W)
@@ -310,87 +315,131 @@ void writeToMem(u8 val, u32 fulladr) {
 void startDMA() {
 	for (u8 i = 0; i < 8; i++) {
 		if ((memory[0x420b] & (1 << i)) == (1 << i)) {
-			printf("Starting DMA %d - PC is %x\n", i, getPC());
-			if (getPC() == 0x8162)
+			if (getPC() == 0x8265)
 				printf("hold");
-			u16 _IO = memory[0x4301 + (i * 0x10)];
+			u8 _IO = memory[0x4301 + (i * 0x10)];
 			u8 _v = memory[0x4300 + (i * 0x10)];
 			u8 dma_dir = _v >> 7;				//	0 - write to IO, 1 - read from IO
 			u8 dma_step = (_v >> 3) & 0b11;		//	0 - increment, 2 - decrement, 1/3 = none
 			u8 dma_mode = (_v & 0b111);
 			u32 target_adr = (memory[0x4304 + (i * 0x10)] << 16) | (memory[0x4303 + (i * 0x10)] << 8) | memory[0x4302 + (i * 0x10)];
-			while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
-				switch (dma_mode) {
-				case 0:				//	transfer 1 byte (e.g. WRAM)
+			printf("Starting DMA %d - PC is %x - target_adr %x - VRAM Adr %x - size %x\n", i, getPC(), target_adr, ((memory[0x2117] << 8) | memory[0x2116]), ((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]));
+			//	count bytes
+			u16 c = (memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)];
+			switch (dma_mode) {
+			case 0: {				//	transfer 1 byte (e.g. WRAM)
+				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
 					if (!dma_dir)
 						writeToMem(memory[target_adr], 0x2100 + _IO);
 					else
 						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-					break;
-				case 1:				//	transfer 2 bytes (xx, xx + 1) (e.g. VRAM)
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 1);
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 1);
-					}
-					break;
-				case 2:				//	transfer 2 bytes (xx, xx) (e.g. OAM / CGRAM)
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						writeToMem(memory[target_adr], 0x2100 + _IO + 1);
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						writeToMem(readFromMem(0x2100 + _IO), target_adr + 1);
-					}
-					break;
-				case 3:				//	transfer 4 bytes (xx, xx, xx + 1, xx + 1) (e.g. BGnxOFX, M7x)
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						writeToMem(memory[target_adr], 0x2100 + _IO + 1);
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 2);
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 3);
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						writeToMem(readFromMem(0x2100 + _IO), target_adr + 1);
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 2);
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 2);
-					}
-					break;
-				case 4:				//	transfer 4 bytes (xx, xx + 1, xx + 2, xx + 3) (e.g. BGnSC, Window, APU...)
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 1);
-						writeToMem(memory[target_adr + 2], 0x2100 + _IO + 2);
-						writeToMem(memory[target_adr + 3], 0x2100 + _IO + 3);
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 1);
-						writeToMem(readFromMem(0x2100 + _IO + 2), target_adr + 2);
-						writeToMem(readFromMem(0x2100 + _IO + 3), target_adr + 2);
-					}
-					break;
-				case 5:				//	transfer 4 bytes (xx, xx + 1, xx, xx + 1) - RESERVED
-					break;
-				case 6:				//	same as mode 2 - RESERVED
-					break;
-				case 7:				//	same as mode 3 - RESERVED
-					break;
-				default:
-					break;
+					c--;
+					memory[0x4306 + (i * 0x10)] = c >> 8;
+					memory[0x4305 + (i * 0x10)] = c & 0xff;
+					target_adr += (dma_step == 0) ? 1 : ((dma_step == 2) ? -1 : 0);
 				}
-				//	count bytes
-				u16 c = (memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)];
-				c--;
-				memory[0x4306 + (i * 0x10)] = c >> 8;
-				memory[0x4305 + (i * 0x10)] = c & 0xff;
-				//	increment/decrement/none target address
-				target_adr += (dma_step == 0) ? 1 : ((dma_step == 2) ? -1 : 0);
+				break;
+			}
+			case 1:				//	transfer 2 bytes (xx, xx + 1) (e.g. VRAM)
+				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
+					if (!dma_dir) {
+						writeToMem(memory[target_adr], 0x2100 + _IO);
+						if (!--c) return;
+						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 1);
+						if (!--c) return;
+					}
+					else {
+						writeToMem(readFromMem(0x2100 + _IO), target_adr);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 1);
+						if (!--c) return;
+					}
+					memory[0x4306 + (i * 0x10)] = c >> 8;
+					memory[0x4305 + (i * 0x10)] = c & 0xff;
+					target_adr += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
+				}
+				break;
+			case 2:				//	transfer 2 bytes (xx, xx) (e.g. OAM / CGRAM)
+				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
+					if (!dma_dir) {
+						writeToMem(memory[target_adr], 0x2100 + _IO);
+						if (!--c) return;
+						writeToMem(memory[target_adr], 0x2100 + _IO + 1);
+						if (!--c) return;
+					}
+					else {
+						writeToMem(readFromMem(0x2100 + _IO), target_adr);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO), target_adr + 1);
+						if (!--c) return;
+					}
+					memory[0x4306 + (i * 0x10)] = c >> 8;
+					memory[0x4305 + (i * 0x10)] = c & 0xff;
+					target_adr += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
+				}
+				break;
+			case 3:				//	transfer 4 bytes (xx, xx, xx + 1, xx + 1) (e.g. BGnxOFX, M7x)
+				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
+					if (!dma_dir) {
+						writeToMem(memory[target_adr], 0x2100 + _IO);
+						if (!--c) return;
+						writeToMem(memory[target_adr], 0x2100 + _IO + 1);
+						if (!--c) return;
+						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 2);
+						if (!--c) return;
+						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 3);
+						if (!--c) return;
+					}
+					else {
+						writeToMem(readFromMem(0x2100 + _IO), target_adr);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO), target_adr + 1);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 2);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 2);
+						if (!--c) return;
+					}
+					memory[0x4306 + (i * 0x10)] = c >> 8;
+					memory[0x4305 + (i * 0x10)] = c & 0xff;
+					target_adr += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
+				}
+				break;
+			case 4:				//	transfer 4 bytes (xx, xx + 1, xx + 2, xx + 3) (e.g. BGnSC, Window, APU...)
+				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
+					if (!dma_dir) {
+						writeToMem(memory[target_adr], 0x2100 + _IO);
+						if (!--c) return;
+						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 1);
+						if (!--c) return;
+						writeToMem(memory[target_adr + 2], 0x2100 + _IO + 2);
+						if (!--c) return;
+						writeToMem(memory[target_adr + 3], 0x2100 + _IO + 3);
+						if (!--c) return;
+					}
+					else {
+						writeToMem(readFromMem(0x2100 + _IO), target_adr);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 1);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO + 2), target_adr + 2);
+						if (!--c) return;
+						writeToMem(readFromMem(0x2100 + _IO + 3), target_adr + 2);
+						if (!--c) return;
+					}
+					memory[0x4306 + (i * 0x10)] = c >> 8;
+					memory[0x4305 + (i * 0x10)] = c & 0xff;
+					target_adr += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
+				}
+				break;
+			case 5:				//	transfer 4 bytes (xx, xx + 1, xx, xx + 1) - RESERVED
+				break;
+			case 6:				//	same as mode 2 - RESERVED
+				break;
+			case 7:				//	same as mode 3 - RESERVED
+				break;
+			default:
+				break;
 			}
 		}
 	}

@@ -15,7 +15,7 @@ SDL_Event event;					//	Eventhandler for all SDL events
 
 //		Kroms tests from https://github.com/PeterLemon/SNES/tree/master/CPUTest/CPU
 //string filename = "CPUADC.sfc";		//	-	Passed
-string filename = "CPUAND.sfc";		//	-	Passed
+//string filename = "CPUAND.sfc";		//	-	Passed
 //string filename = "CPUASL.sfc";		//	-	Passed
 //string filename = "CPUBIT.sfc";		//	-	Passed
 //string filename = "CPUBRA.sfc";		//	-	Passed
@@ -36,10 +36,10 @@ string filename = "CPUAND.sfc";		//	-	Passed
 //string filename = "CPUROR.sfc";		//	-	Passed
 //string filename = "CPUSBC.sfc";		//	-	Passed
 //string filename = "CPUSTR.sfc";		//	-	Passed
-//string filename = "CPUTRN.sfc";		//	-	Passed
+string filename = "CPUTRN.sfc";		//	-	Passed
 
+//string filename = "8x8BG1Map2BPP32x328PAL.sfc";
 
-//string filename = "smw.smc";
 bool unpaused = true;
 
 int lastcyc = 0;
