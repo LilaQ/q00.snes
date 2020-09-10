@@ -127,6 +127,7 @@ void loadROM(string filename) {
 	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
 
 	resetCPU(  );
+	setTitle(filename);
 }
 
 u16 NMI = 0xc2;
@@ -183,6 +184,10 @@ u8 readFromMem(u32 fulladr) {
 				return (adr == 0x2139) ? readFromVRAM(adr) & 0xff : readFromVRAM(adr) >> 8;
 				break;
 			}
+			case 0x213b:			//	PPU - CGDATA - Palette CGRAM Data Read (R)
+				return readFromCGRAM(memory[0x2121]);
+				memory[0x2121]++;
+				break;
 			case 0x4210:			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
 				//	TODO add the NMI flag
 				//	2 is always set, this inidicates the CPU version
@@ -266,6 +271,10 @@ void writeToMem(u8 val, u32 fulladr) {
 			writeToVRAM(val, _adr);
 			break;
 		}
+		case 0x2122:			//	PPU - CGDATA - Palette CGRAM Data Write (W)
+			writeToCGRAM(val, memory[0x2121]);
+			memory[0x2121]++;
+			break;
 		case 0x4200:			//	PPU Interrupts - Interrupt Enable and Joypad Requests (W)
 			break;
 		case 0x4207:			//	PPU Interrupts - H-Count Timer Setting - Low (W)
@@ -302,7 +311,7 @@ void startDMA() {
 	for (u8 i = 0; i < 8; i++) {
 		if ((memory[0x420b] & (1 << i)) == (1 << i)) {
 			printf("Starting DMA %d - PC is %x\n", i, getPC());
-			if (getPC() == 0x81b2)
+			if (getPC() == 0x8162)
 				printf("hold");
 			u16 _IO = memory[0x4301 + (i * 0x10)];
 			u8 _v = memory[0x4300 + (i * 0x10)];

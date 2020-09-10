@@ -45,7 +45,7 @@ bool unpaused = true;
 int lastcyc = 0;
 int ppus = 0;
 
-uint16_t fuckarse = 0;
+uint16_t w = 0;
 
 int main()
 {
@@ -60,9 +60,9 @@ int main()
 
 		if (unpaused) {
 			lastcyc = stepCPU();
-			fuckarse += lastcyc;
-			if (fuckarse > 10000) {
-				fuckarse = 0;
+			w += lastcyc;
+			if (w > 10000) {
+				w = 0;
 				stepPPU();
 				drawFrame();
 			}
