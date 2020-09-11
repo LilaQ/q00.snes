@@ -14,6 +14,7 @@
 #include "mmu.h"
 #include "input.h"
 #include "commctrl.h"
+#include "wmu.h"
 #undef main
 
 using namespace::std;
@@ -53,9 +54,8 @@ void initWindow(SDL_Window *win, string filename) {
 	AppendMenu(hFile, MF_STRING, 7, "» reset");
 	AppendMenu(hFile, MF_STRING, 1, "» exit");
 	AppendMenu(hHelp, MF_STRING, 3, "» about");
-	AppendMenu(hDebugger, MF_STRING, 4, "» CHR table");
-	AppendMenu(hDebugger, MF_STRING, 5, "» Nametables");
-	AppendMenu(hDebugger, MF_STRING, 10, "» OAM tables");
+	AppendMenu(hDebugger, MF_STRING, 4, "» CGRAM");
+	AppendMenu(hDebugger, MF_STRING, 5, "» VRAM");
 	AppendMenu(hSavestates, MF_STRING, 12, "» save state");
 	AppendMenu(hSavestates, MF_STRING, 13, "» load state");
 	AppendMenu(hConfig, MF_POPUP, (UINT_PTR)hSound, "[ sound ]");
@@ -100,9 +100,13 @@ void handleWindowEvents(SDL_Event event) {
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 7) {
 					reset();
 				}
-				//	Memory Map
-				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 8) {
-					//showMemoryMap();
+				//	CGRAM Map
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 4) {
+					showCGRAMMap();
+				}
+				//	VRAM Map
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 5) {
+					showVRAMMap();
 				}
 				//	Load ROM
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 9) {
@@ -166,4 +170,142 @@ void handleWindowEvents(SDL_Event event) {
 		togglePause();
 		keys[SDL_SCANCODE_SPACE] = 0;
 	}
+}
+
+void showCGRAMMap() {
+
+	SDL_Renderer* renderer;
+	SDL_Window* window;
+
+	//	init and create window and renderer
+	SDL_Init(SDL_INIT_VIDEO);
+	SDL_CreateWindowAndRenderer(550, 480, 0, &window, &renderer);
+	SDL_SetWindowSize(window, 550, 480);
+	SDL_SysWMinfo wmInfo;
+	SDL_VERSION(&wmInfo.version);
+	SDL_GetWindowWMInfo(window, &wmInfo);
+	SDL_SetWindowTitle(window, "[ q00.snes ][ cgram map ]");
+
+	HWND hwnd = wmInfo.info.win.window;
+	HINSTANCE hInst = wmInfo.info.win.hinstance;
+	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 530, 460, hwnd, NULL, hInst, NULL);
+
+	//	MEMDUMP Control
+	string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
+	for (int i = 0; i < 0x200; i += 0x10) {
+		char title[70];
+		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x \r\n", i,
+			readFromCGRAM(i) & 0xff,
+			readFromCGRAM(i) >> 8,
+			readFromCGRAM(i + 1) & 0xff,
+			readFromCGRAM(i + 1) >> 8,
+			readFromCGRAM(i + 2) & 0xff,
+			readFromCGRAM(i + 2) >> 8,
+			readFromCGRAM(i + 3) & 0xff,
+			readFromCGRAM(i + 3) >> 8,
+			readFromCGRAM(i + 4) & 0xff,
+			readFromCGRAM(i + 4) >> 8,
+			readFromCGRAM(i + 5) & 0xff,
+			readFromCGRAM(i + 5) >> 8,
+			readFromCGRAM(i + 6) & 0xff,
+			readFromCGRAM(i + 6) >> 8,
+			readFromCGRAM(i + 7) & 0xff,
+			readFromCGRAM(i + 7) >> 8
+		);
+		s.append((string)title);
+	}
+
+	const TCHAR* text = s.c_str();
+	HDC wdc = GetWindowDC(hScroll);
+	HFONT font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
+	LOGFONT lf;
+	GetObject(font, sizeof(LOGFONT), &lf);
+	lf.lfWeight = FW_LIGHT;
+	HFONT boldFont = CreateFontIndirect(&lf);
+	SendMessage(hScroll, WM_SETFONT, (WPARAM)boldFont, 60);
+	SendMessage(hScroll, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));
+
+	//	FLAGS Control
+	/*HWND hFlags = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 40, 60, hwnd, NULL, hInst, NULL);
+	s = "";
+	char title[70];
+	snprintf(title, sizeof title, "Z: %d\r\nN: %d\r\nH: %d\r\nC: %d\r\n", flags.Z, flags.N, flags.H, flags.C);
+	s.append((string)title);
+	text = s.c_str();
+	wdc = GetWindowDC(hFlags);
+	font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
+	SendMessage(hFlags, WM_SETFONT, (WPARAM)font, 60);
+	SendMessage(hFlags, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));*/
+
+}
+
+void showVRAMMap() {
+
+	SDL_Renderer* renderer;
+	SDL_Window* window;
+
+	//	init and create window and renderer
+	SDL_Init(SDL_INIT_VIDEO);
+	SDL_CreateWindowAndRenderer(730, 880, 0, &window, &renderer);
+	SDL_SetWindowSize(window, 730, 880);
+	SDL_SysWMinfo wmInfo;
+	SDL_VERSION(&wmInfo.version);
+	SDL_GetWindowWMInfo(window, &wmInfo);
+	SDL_SetWindowTitle(window, "[ q00.snes ][ vram map ]");
+
+	HWND hwnd = wmInfo.info.win.window;
+	HINSTANCE hInst = wmInfo.info.win.hinstance;
+	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 710, 860, hwnd, NULL, hInst, NULL);
+
+	//	MEMDUMP Control
+	string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
+	for (int i = 0; i < 0x8000; i += 0x8) {
+		char title[85];
+		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x     |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i*2,
+			readFromVRAM(i) & 0xff,
+			readFromVRAM(i) >> 8,
+			readFromVRAM(i + 1) & 0xff,
+			readFromVRAM(i + 1) >> 8,
+			readFromVRAM(i + 2) & 0xff,
+			readFromVRAM(i + 2) >> 8,
+			readFromVRAM(i + 3) & 0xff,
+			readFromVRAM(i + 3) >> 8,
+			readFromVRAM(i + 4) & 0xff,
+			readFromVRAM(i + 4) >> 8,
+			readFromVRAM(i + 5) & 0xff,
+			readFromVRAM(i + 5) >> 8,
+			readFromVRAM(i + 6) & 0xff,
+			readFromVRAM(i + 6) >> 8,
+			readFromVRAM(i + 7) & 0xff,
+			readFromVRAM(i + 7) >> 8,
+			((readFromVRAM(i) & 0xff) > 32) ? readFromVRAM(i) & 0xff : '.',
+			((readFromVRAM(i) >> 8) > 32) ? readFromVRAM(i) >> 8 : '.',
+			((readFromVRAM(i + 1) & 0xff) > 32) ? readFromVRAM(i + 1) & 0xff : '.',
+			((readFromVRAM(i + 1) >> 8) > 32) ? readFromVRAM(i + 1) >> 8 : '.',
+			((readFromVRAM(i + 2) & 0xff) > 32) ? readFromVRAM(i + 2) & 0xff : '.',
+			((readFromVRAM(i + 2) >> 8) > 32) ? readFromVRAM(i + 2) >> 8 : '.',
+			((readFromVRAM(i + 3) & 0xff) > 32) ? readFromVRAM(i + 3) & 0xff : '.',
+			((readFromVRAM(i + 3) >> 8) > 32) ? readFromVRAM(i + 3) >> 8 : '.',
+			((readFromVRAM(i + 4) & 0xff) > 32) ? readFromVRAM(i + 4) & 0xff : '.',
+			((readFromVRAM(i + 4) >> 8) > 32) ? readFromVRAM(i + 4) >> 8 : '.',
+			((readFromVRAM(i + 5) & 0xff) > 32) ? readFromVRAM(i + 5) & 0xff : '.',
+			((readFromVRAM(i + 5) >> 8) > 32) ? readFromVRAM(i + 5) >> 8 : '.',
+			((readFromVRAM(i + 6) & 0xff) > 32) ? readFromVRAM(i + 6) & 0xff : '.',
+			((readFromVRAM(i + 6) >> 8) > 32) ? readFromVRAM(i + 6) >> 8 : '.',
+			((readFromVRAM(i + 7) & 0xff) > 32) ? readFromVRAM(i + 7) & 0xff : '.',
+			((readFromVRAM(i + 7) >> 8) > 32) ? readFromVRAM(i + 7) >> 8 : '.'
+		);
+		s.append((string)title);
+	}
+
+	const TCHAR* text = s.c_str();
+	HDC wdc = GetWindowDC(hScroll);
+	HFONT font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
+	LOGFONT lf;
+	GetObject(font, sizeof(LOGFONT), &lf);
+	lf.lfWeight = FW_LIGHT;
+	HFONT boldFont = CreateFontIndirect(&lf);
+	SendMessage(hScroll, WM_SETFONT, (WPARAM)boldFont, 60);
+	SendMessage(hScroll, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));
+
 }

@@ -4,3 +4,5 @@
 using namespace::std;
 void initWindow(SDL_Window *win, string filename);
 void handleWindowEvents(SDL_Event event);
+void showCGRAMMap();
+void showVRAMMap();

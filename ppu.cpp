@@ -110,7 +110,6 @@ u16 readFromVRAM(u16 adr) {
 }
 
 void writeToCGRAM(u8 val, u8 adr) {
-	printf("CGRAM Write: adr %x - val %x\n", adr, val);
 	//	if address is even, we just remember the current value
 	if (adr % 2 == 0) {
 		CGRAM_Lsb = val;
