@@ -1,6 +1,5 @@
 #include "cpu.h"
 #include "mmu.h"
-#include "ppu.h"
 #include <map>
 
 typedef int8_t		i8;

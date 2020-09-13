@@ -23,6 +23,7 @@ vector<u8> memory(0xffffff);
 vector<u8> cartridge_memory;
 
 void reset() {
+	resetPPU();
 	resetCPU();
 }
 
@@ -106,7 +107,7 @@ void loadROM(string filename) {
 	}
 	cartridge.initSNESHeader(header);
 	
-	/*cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
+	cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
 	cout << "------------------------------------------------------\n";
 	cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
 	cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
@@ -124,10 +125,11 @@ void loadROM(string filename) {
  	cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
 	cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
 	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
-	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
+	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
 
-	resetCPU(  );
+	resetPPU();
 	setTitle(filename);
+	resetCPU();
 }
 
 u16 NMI = 0xc2;
@@ -230,7 +232,7 @@ void writeToMem(u8 val, u32 fulladr) {
 			u8 _v_hi_lo = memory[0x2115] >> 7;
 			u8 _v_trans = (memory[0x2115] & 0b1100) >> 2;
 			u8 _v_step = memory[0x2115] & 0b11;
-			switch (_v_trans) { //	PPU - Apply address translation if necessary (leftshift thrice lower 8, 9 or 10 bits)
+			switch (_v_trans) {		//	PPU - Apply address translation if necessary (leftshift thrice lower 8, 9 or 10 bits)
 				case 0b00:
 					break;
 				case 0b01: {		//	8 bit, aaaaaaaYYYxxxxx becomes aaaaaaaxxxxxYYY
@@ -278,7 +280,7 @@ void writeToMem(u8 val, u32 fulladr) {
 		}
 		case 0x2122:			//	PPU - CGDATA - Palette CGRAM Data Write (W)
 			writeToCGRAM(val, memory[0x2121]);
-			memory[0x2121]++;
+			//memory[0x2121]++;
 			break;
 		case 0x4200:			//	PPU Interrupts - Interrupt Enable and Joypad Requests (W)
 			break;
@@ -292,12 +294,10 @@ void writeToMem(u8 val, u32 fulladr) {
 			break;
 
 		case 0x420b:			//	DMA - MDMAEN - Select general purpose DMA Channel(s) and start Transfer (W)
-			printf("DMA Reg Write %x\n", val);
 			if (val > 0)
 				startDMA();
 			break;
 		case 0x420c:			//	DMA - HDMAEN - Select H-Blank DMA (HDMA) Channel(s) and start Transfer (W)
-			printf("HDMA Reg Write %x\n", val);
 			if (val > 0)
 				startHDMA();
 			break;
@@ -323,7 +323,7 @@ void startDMA() {
 			u8 dma_step = (_v >> 3) & 0b11;		//	0 - increment, 2 - decrement, 1/3 = none
 			u8 dma_mode = (_v & 0b111);
 			u32 target_adr = (memory[0x4304 + (i * 0x10)] << 16) | (memory[0x4303 + (i * 0x10)] << 8) | memory[0x4302 + (i * 0x10)];
-			printf("Starting DMA %d - PC is %x - target_adr %x - VRAM Adr %x - size %x\n", i, getPC(), target_adr, ((memory[0x2117] << 8) | memory[0x2116]), ((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]));
+			//printf("Starting DMA %d - PC is %x - target_adr %x - VRAM Adr %x - size %x\n", i, getPC(), target_adr, ((memory[0x2117] << 8) | memory[0x2116]), ((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]));
 			//	count bytes
 			u16 c = (memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)];
 			switch (dma_mode) {
@@ -340,7 +340,7 @@ void startDMA() {
 				}
 				break;
 			}
-			case 1:				//	transfer 2 bytes (xx, xx + 1) (e.g. VRAM)
+			case 1:					//	transfer 2 bytes (xx, xx + 1) (e.g. VRAM)
 				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
 					if (!dma_dir) {
 						writeToMem(memory[target_adr], 0x2100 + _IO);
@@ -359,7 +359,7 @@ void startDMA() {
 					target_adr += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
 				}
 				break;
-			case 2:				//	transfer 2 bytes (xx, xx) (e.g. OAM / CGRAM)
+			case 2:					//	transfer 2 bytes (xx, xx) (e.g. OAM / CGRAM)
 				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
 					if (!dma_dir) {
 						writeToMem(memory[target_adr], 0x2100 + _IO);
@@ -378,7 +378,7 @@ void startDMA() {
 					target_adr += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
 				}
 				break;
-			case 3:				//	transfer 4 bytes (xx, xx, xx + 1, xx + 1) (e.g. BGnxOFX, M7x)
+			case 3:					//	transfer 4 bytes (xx, xx, xx + 1, xx + 1) (e.g. BGnxOFX, M7x)
 				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
 					if (!dma_dir) {
 						writeToMem(memory[target_adr], 0x2100 + _IO);
@@ -405,7 +405,7 @@ void startDMA() {
 					target_adr += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
 				}
 				break;
-			case 4:				//	transfer 4 bytes (xx, xx + 1, xx + 2, xx + 3) (e.g. BGnSC, Window, APU...)
+			case 4:					//	transfer 4 bytes (xx, xx + 1, xx + 2, xx + 3) (e.g. BGnSC, Window, APU...)
 				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
 					if (!dma_dir) {
 						writeToMem(memory[target_adr], 0x2100 + _IO);
@@ -432,11 +432,11 @@ void startDMA() {
 					target_adr += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
 				}
 				break;
-			case 5:				//	transfer 4 bytes (xx, xx + 1, xx, xx + 1) - RESERVED
+			case 5:					//	transfer 4 bytes (xx, xx + 1, xx, xx + 1) - RESERVED
 				break;
-			case 6:				//	same as mode 2 - RESERVED
+			case 6:					//	same as mode 2 - RESERVED
 				break;
-			case 7:				//	same as mode 3 - RESERVED
+			case 7:					//	same as mode 3 - RESERVED
 				break;
 			default:
 				break;

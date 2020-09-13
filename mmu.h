@@ -1,4 +1,7 @@
-#pragma once
+#ifndef LIB_MMU
+#define LIB_MMU
+
+
 #include <stdint.h>
 #include <string>
 #include <map>
@@ -223,3 +226,5 @@ u8 readFromMem(u32 adr);
 void writeToMem(u8 val, u32 adr);
 void startDMA();
 void startHDMA();
+
+#endif // !LIB_MMU

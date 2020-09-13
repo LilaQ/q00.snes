@@ -179,8 +179,8 @@ void showCGRAMMap() {
 
 	//	init and create window and renderer
 	SDL_Init(SDL_INIT_VIDEO);
-	SDL_CreateWindowAndRenderer(550, 480, 0, &window, &renderer);
-	SDL_SetWindowSize(window, 550, 480);
+	SDL_CreateWindowAndRenderer(730, 480, 0, &window, &renderer);
+	SDL_SetWindowSize(window, 730, 480);
 	SDL_SysWMinfo wmInfo;
 	SDL_VERSION(&wmInfo.version);
 	SDL_GetWindowWMInfo(window, &wmInfo);
@@ -188,13 +188,13 @@ void showCGRAMMap() {
 
 	HWND hwnd = wmInfo.info.win.window;
 	HINSTANCE hInst = wmInfo.info.win.hinstance;
-	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 530, 460, hwnd, NULL, hInst, NULL);
+	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 710, 460, hwnd, NULL, hInst, NULL);
 
 	//	MEMDUMP Control
 	string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
-	for (int i = 0; i < 0x200; i += 0x10) {
-		char title[70];
-		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x \r\n", i,
+	for (int i = 0; i < 0x100; i += 0x8) {
+		char title[85];
+		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x      |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i*2,
 			readFromCGRAM(i) & 0xff,
 			readFromCGRAM(i) >> 8,
 			readFromCGRAM(i + 1) & 0xff,
@@ -210,7 +210,23 @@ void showCGRAMMap() {
 			readFromCGRAM(i + 6) & 0xff,
 			readFromCGRAM(i + 6) >> 8,
 			readFromCGRAM(i + 7) & 0xff,
-			readFromCGRAM(i + 7) >> 8
+			readFromCGRAM(i + 7) >> 8,
+			((readFromCGRAM(i) & 0xff) > 32) ? readFromCGRAM(i) & 0xff : '.',
+			((readFromCGRAM(i) >> 8) > 32) ? readFromCGRAM(i) >> 8 : '.',
+			((readFromCGRAM(i + 1) & 0xff) > 32) ? readFromCGRAM(i + 1) & 0xff : '.',
+			((readFromCGRAM(i + 1) >> 8) > 32) ? readFromCGRAM(i + 1) >> 8 : '.',
+			((readFromCGRAM(i + 2) & 0xff) > 32) ? readFromCGRAM(i + 2) & 0xff : '.',
+			((readFromCGRAM(i + 2) >> 8) > 32) ? readFromCGRAM(i + 2) >> 8 : '.',
+			((readFromCGRAM(i + 3) & 0xff) > 32) ? readFromCGRAM(i + 3) & 0xff : '.',
+			((readFromCGRAM(i + 3) >> 8) > 32) ? readFromCGRAM(i + 3) >> 8 : '.',
+			((readFromCGRAM(i + 4) & 0xff) > 32) ? readFromCGRAM(i + 4) & 0xff : '.',
+			((readFromCGRAM(i + 4) >> 8) > 32) ? readFromCGRAM(i + 4) >> 8 : '.',
+			((readFromCGRAM(i + 5) & 0xff) > 32) ? readFromCGRAM(i + 5) & 0xff : '.',
+			((readFromCGRAM(i + 5) >> 8) > 32) ? readFromCGRAM(i + 5) >> 8 : '.',
+			((readFromCGRAM(i + 6) & 0xff) > 32) ? readFromCGRAM(i + 6) & 0xff : '.',
+			((readFromCGRAM(i + 6) >> 8) > 32) ? readFromCGRAM(i + 6) >> 8 : '.',
+			((readFromCGRAM(i + 7) & 0xff) > 32) ? readFromCGRAM(i + 7) & 0xff : '.',
+			((readFromCGRAM(i + 7) >> 8) > 32) ? readFromCGRAM(i + 7) >> 8 : '.'
 		);
 		s.append((string)title);
 	}

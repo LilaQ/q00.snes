@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 #include "mmu.h"
 #include "cpu.h"
@@ -36,9 +37,14 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "CPUROR.sfc";		//	-	Passed
 //string filename = "CPUSBC.sfc";		//	-	Passed
 //string filename = "CPUSTR.sfc";		//	-	Passed
-string filename = "CPUTRN.sfc";		//	-	Passed
+//string filename = "CPUTRN.sfc";		//	-	Passed
 
 //string filename = "8x8BG1Map2BPP32x328PAL.sfc";
+//string filename = "8x8BG2Map2BPP32x328PAL.sfc";
+//string filename = "8x8BG3Map2BPP32x328PAL.sfc";
+//string filename = "8x8BG4Map2BPP32x328PAL.sfc";
+string filename = "8x8BGMap4BPP32x328PAL.sfc";
+//string filename = "8x8BGMap8BPP32x32.sfc";
 
 bool unpaused = true;
 
@@ -64,7 +70,6 @@ int main()
 			if (w > 10000) {
 				w = 0;
 				stepPPU();
-				drawFrame();
 			}
 			stepAPU(lastcyc);
 		}

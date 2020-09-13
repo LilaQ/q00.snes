@@ -1,4 +1,6 @@
-#pragma once
+#ifndef LIB_CPU
+#define LIB_CPU
+
 #include <stdint.h>
 #include <stdio.h>
 #include "mmu.h"
@@ -257,3 +259,5 @@ u8 stepCPU();
 void resetCPU();
 void togglePause();
 u16 getPC();
+
+#endif // !LIB_CPU

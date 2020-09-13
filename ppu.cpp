@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <string>
+#include <algorithm>
 #include "SDL2/include/SDL.h"
 #include "mmu.h"
 #include "ppu.h"
@@ -19,10 +20,12 @@ using namespace::std;
 u16 VRAM[0x8000];	//	64 kbytes (16bit * 0x8000 [ 32768 ] )
 u16 CGRAM[0x100];	//	512 bytes (16bit * 0x100 [ 256 ] ) 
 u8 CGRAM_Lsb;
+bool CGRAM_Flipflip = false;
 const int FB_SIZE = 256 * 239 * 4;
 SDL_Renderer *renderer;
 SDL_Window *window;
-SDL_Texture *texture;
+SDL_Texture *TEXTURE[4];
+u8 BGS[4][FB_SIZE];
 u8 framebuffer[FB_SIZE];
 
 void initPPU(string filename) {
@@ -40,7 +43,17 @@ void initPPU(string filename) {
 	SDL_SetWindowResizable(window, SDL_TRUE);
 
 	//	for fast rendering, create a texture
-	texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
+
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	
 
 	/*
 		INIT WINDOW
@@ -53,50 +66,139 @@ void setTitle(string filename) {
 	SDL_SetWindowTitle(window, filename.c_str());
 }
 
+void resetPPU() {
+	memset(BGS[0], 0, sizeof(BGS[0]));
+	memset(BGS[1], 0, sizeof(BGS[1]));
+	memset(BGS[2], 0, sizeof(BGS[2]));
+	memset(BGS[3], 0, sizeof(BGS[3]));
+	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
+}
+
 /*
 	DRAW FRAME
 */
 void drawFrame() {
-	SDL_UpdateTexture(texture, NULL, framebuffer, 256 * sizeof(u8) * 4);
-	SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u8) * 4);
+	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u8) * 4);
+	SDL_UpdateTexture(TEXTURE[2], NULL, BGS[2], 256 * sizeof(u8) * 4);
+	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u8) * 4);
+
+	SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
 	SDL_RenderPresent(renderer);
-	//printf("drawFrame\n");
+	
 }
 
-void writeToFB(u16 x, u16 y, u32 v) {
-	framebuffer[y * 4 * 256 + x * 4] = v >> 24;
-	framebuffer[y * 4 * 256 + x * 4 + 1] = v >> 16 & 0xff;
-	framebuffer[y * 4 * 256 + x * 4 + 2] = v >> 8 & 0xff;
-	framebuffer[y * 4 * 256 + x * 4 + 3] = v & 0xff;
+void writeToFB(u8 *BG, u16 x, u16 y, u32 v) {
+	BG[y * 4 * 256 + x * 4] = v >> 24;
+	BG[y * 4 * 256 + x * 4 + 1] = v >> 16 & 0xff;
+	BG[y * 4 * 256 + x * 4 + 2] = v >> 8 & 0xff;
+	BG[y * 4 * 256 + x * 4 + 3] = v & 0xff;
 }
 
-u32 getRGBAFromCGRAM(u8 id, u8 palette) {
-	const u8 r = (CGRAM[id + palette * 4] & 0b11111) * 255 / 31;
-	const u8 g = ((CGRAM[id + palette * 4] >> 5) & 0b11111) * 255 / 31;
-	const u8 b = ((CGRAM[id + palette * 4] >> 10) & 0b11111) * 255 / 31;
+u32 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
+	u16 color = CGRAM[(id + palette * (bpp*bpp)) + palette_base];
+	if (!id)	//	all bits on zero results in using backdrop color
+		color = CGRAM[0x00];
+	const u8 r = (color & 0b11111) * 255 / 31;
+	const u8 g = ((color >> 5) & 0b11111) * 255 / 31;
+	const u8 b = ((color >> 10) & 0b11111) * 255 / 31;
 	return (r << 24) | (g << 16) | (b << 8) | 0xff;
 }
 
+void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base) {
+	const u16 offset = (scry / 8) * 32 + (scrx / 8);
+	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
+	const u16 tile_address = tile_id * 8;
+	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
+	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
+	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry % 8;
+	const u8 b_hi = VRAM[tile_address + i] >> 8;
+	const u8 b_lo = VRAM[tile_address + i] & 0xff;
+	const u8 j = scrx % 8;
+	const u8 v = ((b_lo >> (7 - j)) & 1) + (2 * ((b_hi >> (7 - j)) & 1));
+	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
+}
+
+void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base) {
+	const u16 offset = (scry / 8) * 32 + (scrx / 8);
+	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
+	const u16 tile_address = tile_id * 16;
+	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
+	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
+	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry % 8;
+	const u8 b_1 = VRAM[tile_address + i] & 0xff;
+	const u8 b_2 = VRAM[tile_address + i] >> 8;
+	const u8 b_3 = VRAM[tile_address + i + 8] & 0xff;
+	const u8 b_4 = VRAM[tile_address + i + 8] >> 8;
+	const u8 j = scrx % 8;
+	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1));
+	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
+}
+
+void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base) {
+	const u16 offset = (scry / 8) * 32 + (scrx / 8);
+	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
+	const u16 tile_address = tile_id * 32;
+	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
+	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
+	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry / 8;
+	const u8 j = scrx % 8;
+	const u8 b_1 = (j % 2 == 1) ? VRAM[tile_address + (i*8) + j] & 0xff : VRAM[tile_address + (i*8) + j] >> 8;
+	//const u8 b_1 = VRAM[tile_address + i * 8 + j] & 0xff;
+	const u16 v = b_1;
+	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0x1000, 8));
+}
+
 void stepPPU() {
-	for (u16 a = 0x0000; a < 0x3c0; a++) {
-		if (!a) printf("");
-		const u16 tile_id = VRAM[0x7c00 + a] & 0x3ff;				//	mask bits that are for index
-		const u16 tile_address = tile_id * 8;
-		const u8 b_palette_nr = (VRAM[0x7c00 + a] >> 10) & 0b111;
-		const u8 b_priority = (VRAM[0x7c00 + a] >> 13) & 1;			//	0 - lower, 1 - higher
-		const u8 b_flip_x = (VRAM[0x7c00 + a] >> 14) & 1;			//	0 - normal, 1 - mirror horizontally
-		const u8 b_flip_y = (VRAM[0x7c00 + a] >> 15) & 1;			//	0 - normal, 1 - mirror vertically
-		for (int i = 0; i < 8; i++) {
-			const u8 b_hi = VRAM[tile_address + i] >> 8;
-			const u8 b_lo = VRAM[tile_address + i] & 0xff;
-			for (int j = 0; j < 8; j++) {
-				const u8 v = ((b_lo >> (7 - j)) & 1) + (2 * ((b_hi >> (7 - j)) & 1));
-				writeToFB(a % 32 * 8 + j, a / 32 * 8 + i, getRGBAFromCGRAM(v, b_palette_nr));
+	u16 bg_base;
+	u8 bg_size_w, bg_size_h, bg_palette_base;
+
+	//	iterate all BGs
+	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
+		if (((readFromMem(0x212c) >> bg_id) & 1) > 0) {							//	Check if the BG (1/2/3/4) is enabled
+			u8 bg_mode = readFromMem(0x2105) & 0b111;
+			if (BG_MODES[bg_mode][bg_id] != COLOR_DEPTH::CD_DISABLED) {
+				bg_palette_base = 0x20 * bg_id;
+				bg_base = ((readFromMem(0x2107 + bg_id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
+				switch (readFromMem(0x2107 + bg_id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
+				case 0b00: bg_size_w = 32; bg_size_h = 32; break;
+				case 0b01: bg_size_w = 64; bg_size_h = 32; break;
+				case 0b10: bg_size_w = 32; bg_size_h = 64; break;
+				case 0b11: bg_size_w = 64; bg_size_h = 64; break;
+				}
+				for (u16 y = 0; y < 239; y++) {
+					for (u16 x = 0; x < 256; x++) {
+						if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_2BPP_4_COLORS)
+							renderBGat2BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
+						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_4BPP_16_COLORS)
+							renderBGat4BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
+						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_8BPP_256_COLORS)
+							renderBGat8BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
+					}
+				}
 			}
 		}
 	}
-}
 
+	drawFrame();
+}
 
 void writeToVRAMlow(u8 val, u16 adr) {
 	VRAM[adr & 0x7fff] = (VRAM[adr & 0x7fff] & 0xff00) | val;
@@ -111,12 +213,15 @@ u16 readFromVRAM(u16 adr) {
 
 void writeToCGRAM(u8 val, u8 adr) {
 	//	if address is even, we just remember the current value
-	if (adr % 2 == 0) {
+	if (!CGRAM_Flipflip) {
 		CGRAM_Lsb = val;
+		CGRAM_Flipflip = true;
 	}
 	//	else concat the remembered value with the current one, and store it to adr-1
 	else {
-		CGRAM[adr/2] = (val << 8) | CGRAM_Lsb;
+		CGRAM[adr] = (val << 8) | CGRAM_Lsb;
+		CGRAM_Flipflip = false;
+		writeToMem(readFromMem(0x2121) + 1, 0x2121);
 	}
 }
 
