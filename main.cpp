@@ -43,8 +43,9 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "8x8BG2Map2BPP32x328PAL.sfc";
 //string filename = "8x8BG3Map2BPP32x328PAL.sfc";
 //string filename = "8x8BG4Map2BPP32x328PAL.sfc";
-string filename = "8x8BGMap4BPP32x328PAL.sfc";
+//string filename = "8x8BGMap4BPP32x328PAL.sfc";
 //string filename = "8x8BGMap8BPP32x32.sfc";
+string filename = "8x8BGMap8BPP32x328PAL.sfc";
 
 bool unpaused = true;
 

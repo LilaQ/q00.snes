@@ -150,25 +150,38 @@ void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
 }
 
-void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base) {
+void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base) {
 	const u16 offset = (scry / 8) * 32 + (scrx / 8);
-	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
-	const u16 tile_address = tile_id * 32;
-	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
-	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
-	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
-	const u8 i = scry / 8;
+	const u16 tile_base_adr = bg_base + offset;
+	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
+	const u8 b_priority = (VRAM[tile_base_adr] >> 13) & 1;				//	0 - lower, 1 - higher
+	const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
-	const u8 b_1 = (j % 2 == 1) ? VRAM[tile_address + (i*8) + j] & 0xff : VRAM[tile_address + (i*8) + j] >> 8;
-	//const u8 b_1 = VRAM[tile_address + i * 8 + j] & 0xff;
-	const u16 v = b_1;
-	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0x1000, 8));
+	const u16 tile_address = tile_id * 32 + tile_base;
+	const u8 b_1 = VRAM[tile_address + i] & 0xff;
+	const u8 b_2 = VRAM[tile_address + i] >> 8;
+	const u8 b_3 = VRAM[tile_address + i + 8] & 0xff;
+	const u8 b_4 = VRAM[tile_address + i + 8] >> 8;
+	const u8 b_5 = VRAM[tile_address + i + 16] & 0xff;
+	const u8 b_6 = VRAM[tile_address + i + 16] >> 8;
+	const u8 b_7 = VRAM[tile_address + i + 24] & 0xff;
+	const u8 b_8 = VRAM[tile_address + i + 24] >> 8;
+	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1)) + (16 * ((b_5 >> (7 - j)) & 1)) + (32 * ((b_6 >> (7 - j)) & 1)) + (64 * ((b_7 >> (7 - j)) & 1)) + (128 * ((b_8 >> (7 - j)) & 1));
+	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0, 8));
 }
 
 void stepPPU() {
 	u16 bg_base;
 	u8 bg_size_w, bg_size_h, bg_palette_base;
+	u16 tile_base[4] = {
+		(readFromMem(0x210b) & 0xff) * 0x1000,
+		(readFromMem(0x210b) >> 8) * 0x1000,
+		(readFromMem(0x210c) & 0xff) * 0x1000,
+		(readFromMem(0x210c) >> 8) * 0x1000,
+	};
 
 	//	iterate all BGs
 	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
@@ -190,7 +203,7 @@ void stepPPU() {
 						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_4BPP_16_COLORS)
 							renderBGat4BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
 						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_8BPP_256_COLORS)
-							renderBGat8BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
+							renderBGat8BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id]);
 					}
 				}
 			}
