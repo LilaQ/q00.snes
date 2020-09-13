@@ -116,7 +116,12 @@ u32 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
 	return (r << 24) | (g << 16) | (b << 8) | 0xff;
 }
 
-void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base) {
+void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y) {
+	u16 orgx = scrx;													//	store original x/y position, so we can draw in the FB to it
+	u16 orgy = scry;
+	scry = (scry + scroll_y) % (8 * 32);								//	scroll x and y, and adjust for line/column jumps
+	scrx = (scrx + scroll_x) % (8 * 32);
+
 	const u16 offset = (scry / 8) * 32 + (scrx / 8);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u16 tile_address = tile_id * 8;
@@ -129,10 +134,15 @@ void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_lo = VRAM[tile_address + i] & 0xff;
 	const u8 j = scrx % 8;
 	const u8 v = ((b_lo >> (7 - j)) & 1) + (2 * ((b_hi >> (7 - j)) & 1));
-	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
+	writeToFB(BG, orgx, orgy, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
 }
 
-void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base) {
+void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y) {
+	u16 orgx = scrx;													//	store original x/y position, so we can draw in the FB to it
+	u16 orgy = scry;
+	scry = (scry + scroll_y) % (8 * 32);								//	scroll x and y, and adjust for line/column jumps
+	scrx = (scrx + scroll_x) % (8 * 32);
+
 	const u16 offset = (scry / 8) * 32 + (scrx / 8);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u16 tile_address = tile_id * 16;
@@ -147,10 +157,15 @@ void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_4 = VRAM[tile_address + i + 8] >> 8;
 	const u8 j = scrx % 8;
 	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1));
-	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
+	writeToFB(BG, orgx, orgy, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
 }
 
-void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base) {
+void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base, u16 scroll_x, u16 scroll_y) {
+	u16 orgx = scrx;
+	u16 orgy = scry;
+	scry = (scry + scroll_y) % (8 * 32);
+	scrx = (scrx + scroll_x) % (8 * 32);
+
 	const u16 offset = (scry / 8) * 32 + (scrx / 8);
 	const u16 tile_base_adr = bg_base + offset;
 	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
@@ -170,7 +185,7 @@ void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_7 = VRAM[tile_address + i + 24] & 0xff;
 	const u8 b_8 = VRAM[tile_address + i + 24] >> 8;
 	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1)) + (16 * ((b_5 >> (7 - j)) & 1)) + (32 * ((b_6 >> (7 - j)) & 1)) + (64 * ((b_7 >> (7 - j)) & 1)) + (128 * ((b_8 >> (7 - j)) & 1));
-	writeToFB(BG, scrx, scry, getRGBAFromCGRAM(v, b_palette_nr, 0, 8));
+	writeToFB(BG, orgx, orgy, getRGBAFromCGRAM(v, b_palette_nr, 0, 8));
 }
 
 void stepPPU() {
@@ -182,14 +197,20 @@ void stepPPU() {
 		(readFromMem(0x210c) & 0xff) * 0x1000,
 		(readFromMem(0x210c) >> 8) * 0x1000,
 	};
+	u16 scroll_x, scroll_y;
 
 	//	iterate all BGs
 	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
 		if (((readFromMem(0x212c) >> bg_id) & 1) > 0) {							//	Check if the BG (1/2/3/4) is enabled
 			u8 bg_mode = readFromMem(0x2105) & 0b111;
 			if (BG_MODES[bg_mode][bg_id] != COLOR_DEPTH::CD_DISABLED) {
-				bg_palette_base = 0x20 * bg_id;
+				scroll_x = readFromMem(0x210d + (2 * bg_id)) & 0x3ff;			//	Scroll-X value for the current BG
+				scroll_y = readFromMem(0x210e + (2 * bg_id)) & 0x3ff;			//	Scroll-Y value for the current BG
+				scroll_x = 100;
+				scroll_y = 100;
+				bg_palette_base = 0x20 * bg_id;									//	The offset inside CGRAM
 				bg_base = ((readFromMem(0x2107 + bg_id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
+
 				switch (readFromMem(0x2107 + bg_id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
 				case 0b00: bg_size_w = 32; bg_size_h = 32; break;
 				case 0b01: bg_size_w = 64; bg_size_h = 32; break;
@@ -199,11 +220,11 @@ void stepPPU() {
 				for (u16 y = 0; y < 239; y++) {
 					for (u16 x = 0; x < 256; x++) {
 						if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_2BPP_4_COLORS)
-							renderBGat2BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
+							renderBGat2BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y);
 						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_4BPP_16_COLORS)
-							renderBGat4BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base);
+							renderBGat4BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y);
 						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_8BPP_256_COLORS)
-							renderBGat8BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id]);
+							renderBGat8BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], scroll_x, scroll_y);
 					}
 				}
 			}

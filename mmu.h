@@ -121,6 +121,7 @@ public:
 		if (header[0x2a] == 0x33) {
 			header_version = 3;
 		}
+		game_title = "";
 		for (u8 i = 0; i < 21; i++) {
 			game_title += (char)header[i + 0x10];
 		}
