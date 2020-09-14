@@ -44,9 +44,6 @@ void initWindow(SDL_Window *win, string filename) {
 	HMENU hSavestates = CreateMenu();
 	HMENU hVol = CreateMenu();
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hFile, "[ main ]");
-	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hConfig, "[ config ]");
-	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hVol, "[ vol ]");
-	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hSavestates, "[ savestates ]");
 	AppendMenu(hMenuBar, MF_STRING, 11, "[ ||> un/pause ]");
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hDebugger, "[ debug ]");
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hHelp, "[ help ]");
@@ -56,25 +53,10 @@ void initWindow(SDL_Window *win, string filename) {
 	AppendMenu(hHelp, MF_STRING, 3, "» about");
 	AppendMenu(hDebugger, MF_STRING, 4, "» CGRAM");
 	AppendMenu(hDebugger, MF_STRING, 5, "» VRAM");
-	AppendMenu(hSavestates, MF_STRING, 12, "» save state");
-	AppendMenu(hSavestates, MF_STRING, 13, "» load state");
-	AppendMenu(hConfig, MF_POPUP, (UINT_PTR)hSound, "[ sound ]");
-	AppendMenu(hSound, MF_STRING, 14, "» disable/enable");
-	AppendMenu(hSound, MF_STRING, 15, "» disable/enable SC1");
-	AppendMenu(hSound, MF_STRING, 16, "» disable/enable SC2");
-	AppendMenu(hSound, MF_STRING, 17, "» disable/enable SC3");
-	AppendMenu(hSound, MF_STRING, 18, "» disable/enable SC4");
-	AppendMenu(hSound, MF_STRING, 23, "» toggle 8-bit remix mode");
-	AppendMenu(hVol, MF_STRING, 24, "» 10%");
-	AppendMenu(hVol, MF_STRING, 25, "» 20%");
-	AppendMenu(hVol, MF_STRING, 26, "» 30%");
-	AppendMenu(hVol, MF_STRING, 27, "» 40%");
-	AppendMenu(hVol, MF_STRING, 28, "» 50%");
-	AppendMenu(hVol, MF_STRING, 29, "» 60%");
-	AppendMenu(hVol, MF_STRING, 30, "» 70%");
-	AppendMenu(hVol, MF_STRING, 31, "» 80%");
-	AppendMenu(hVol, MF_STRING, 32, "» 90%");
-	AppendMenu(hVol, MF_STRING, 33, "» 100%");
+	AppendMenu(hDebugger, MF_STRING, 3, "» BG1");
+	AppendMenu(hDebugger, MF_STRING, 4, "» BG2");
+	AppendMenu(hDebugger, MF_STRING, 6, "» BG3");
+	AppendMenu(hDebugger, MF_STRING, 8, "» BG4");
 	SetMenu(hwnd, hMenuBar);
 
 	//	Enable WM events for SDL Window
@@ -92,13 +74,27 @@ void handleWindowEvents(SDL_Event event) {
 				if (LOWORD(event.syswm.msg->msg.win.wParam) == 1) {
 					exit(0);
 				}
-				//	About
-				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 3) {
-					//showAbout();
-				}
 				//	Reset
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 7) {
 					reset();
+				}
+
+				//		DEBUG
+				//	BG1
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 3) {
+					debug_drawBG(0);
+				}
+				//	BG2
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 4) {
+					debug_drawBG(1);
+				}
+				//	BG3
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 6) {
+					debug_drawBG(2);
+				}
+				//	BG4
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 8) {
+					debug_drawBG(3);
 				}
 				//	CGRAM Map
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 4) {
@@ -108,6 +104,9 @@ void handleWindowEvents(SDL_Event event) {
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 5) {
 					showVRAMMap();
 				}
+
+
+
 				//	Load ROM
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 9) {
 					char f[100];
@@ -240,19 +239,6 @@ void showCGRAMMap() {
 	HFONT boldFont = CreateFontIndirect(&lf);
 	SendMessage(hScroll, WM_SETFONT, (WPARAM)boldFont, 60);
 	SendMessage(hScroll, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));
-
-	//	FLAGS Control
-	/*HWND hFlags = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 40, 60, hwnd, NULL, hInst, NULL);
-	s = "";
-	char title[70];
-	snprintf(title, sizeof title, "Z: %d\r\nN: %d\r\nH: %d\r\nC: %d\r\n", flags.Z, flags.N, flags.H, flags.C);
-	s.append((string)title);
-	text = s.c_str();
-	wdc = GetWindowDC(hFlags);
-	font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
-	SendMessage(hFlags, WM_SETFONT, (WPARAM)font, 60);
-	SendMessage(hFlags, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));*/
-
 }
 
 void showVRAMMap() {
@@ -323,5 +309,4 @@ void showVRAMMap() {
 	HFONT boldFont = CreateFontIndirect(&lf);
 	SendMessage(hScroll, WM_SETFONT, (WPARAM)boldFont, 60);
 	SendMessage(hScroll, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));
-
 }

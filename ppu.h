@@ -2,6 +2,7 @@
 #define LIB_PPU
 
 #include <string>
+#include "SDL2/include/SDL.h"
 typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
@@ -17,6 +18,9 @@ void setTitle(string filename);
 u16 readFromCGRAM(u8 adr);
 void writeToCGRAM(u8 val, u8 adr);
 void resetPPU();
+
+//	debug
+void debug_drawBG(u8 id);
 
 const enum class COLOR_DEPTH {
 	CD_2BPP_4_COLORS,
