@@ -51,7 +51,7 @@ void initWindow(SDL_Window *win, string filename) {
 	AppendMenu(hFile, MF_STRING, 7, "» reset");
 	AppendMenu(hFile, MF_STRING, 1, "» exit");
 	AppendMenu(hHelp, MF_STRING, 3, "» about");
-	AppendMenu(hDebugger, MF_STRING, 4, "» CGRAM");
+	AppendMenu(hDebugger, MF_STRING, 14, "» CGRAM");
 	AppendMenu(hDebugger, MF_STRING, 5, "» VRAM");
 	AppendMenu(hDebugger, MF_STRING, 3, "» BG1");
 	AppendMenu(hDebugger, MF_STRING, 4, "» BG2");
@@ -97,7 +97,7 @@ void handleWindowEvents(SDL_Event event) {
 					debug_drawBG(3);
 				}
 				//	CGRAM Map
-				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 4) {
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 14) {
 					showCGRAMMap();
 				}
 				//	VRAM Map
@@ -192,40 +192,29 @@ void showCGRAMMap() {
 	//	MEMDUMP Control
 	string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
 	for (int i = 0; i < 0x100; i += 0x8) {
-		char title[85];
-		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x      |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i*2,
-			readFromCGRAM(i) & 0xff,
-			readFromCGRAM(i) >> 8,
-			readFromCGRAM(i + 1) & 0xff,
-			readFromCGRAM(i + 1) >> 8,
-			readFromCGRAM(i + 2) & 0xff,
-			readFromCGRAM(i + 2) >> 8,
-			readFromCGRAM(i + 3) & 0xff,
-			readFromCGRAM(i + 3) >> 8,
-			readFromCGRAM(i + 4) & 0xff,
-			readFromCGRAM(i + 4) >> 8,
-			readFromCGRAM(i + 5) & 0xff,
-			readFromCGRAM(i + 5) >> 8,
-			readFromCGRAM(i + 6) & 0xff,
-			readFromCGRAM(i + 6) >> 8,
-			readFromCGRAM(i + 7) & 0xff,
-			readFromCGRAM(i + 7) >> 8,
-			((readFromCGRAM(i) & 0xff) > 32) ? readFromCGRAM(i) & 0xff : '.',
-			((readFromCGRAM(i) >> 8) > 32) ? readFromCGRAM(i) >> 8 : '.',
-			((readFromCGRAM(i + 1) & 0xff) > 32) ? readFromCGRAM(i + 1) & 0xff : '.',
-			((readFromCGRAM(i + 1) >> 8) > 32) ? readFromCGRAM(i + 1) >> 8 : '.',
-			((readFromCGRAM(i + 2) & 0xff) > 32) ? readFromCGRAM(i + 2) & 0xff : '.',
-			((readFromCGRAM(i + 2) >> 8) > 32) ? readFromCGRAM(i + 2) >> 8 : '.',
-			((readFromCGRAM(i + 3) & 0xff) > 32) ? readFromCGRAM(i + 3) & 0xff : '.',
-			((readFromCGRAM(i + 3) >> 8) > 32) ? readFromCGRAM(i + 3) >> 8 : '.',
-			((readFromCGRAM(i + 4) & 0xff) > 32) ? readFromCGRAM(i + 4) & 0xff : '.',
-			((readFromCGRAM(i + 4) >> 8) > 32) ? readFromCGRAM(i + 4) >> 8 : '.',
-			((readFromCGRAM(i + 5) & 0xff) > 32) ? readFromCGRAM(i + 5) & 0xff : '.',
-			((readFromCGRAM(i + 5) >> 8) > 32) ? readFromCGRAM(i + 5) >> 8 : '.',
-			((readFromCGRAM(i + 6) & 0xff) > 32) ? readFromCGRAM(i + 6) & 0xff : '.',
-			((readFromCGRAM(i + 6) >> 8) > 32) ? readFromCGRAM(i + 6) >> 8 : '.',
-			((readFromCGRAM(i + 7) & 0xff) > 32) ? readFromCGRAM(i + 7) & 0xff : '.',
-			((readFromCGRAM(i + 7) >> 8) > 32) ? readFromCGRAM(i + 7) >> 8 : '.'
+		char title[185];
+		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x      |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i * 2,
+			PPU_readCGRAM(i) & 0xff,
+			PPU_readCGRAM(i) >> 8,
+			PPU_readCGRAM(i + 1) & 0xff,
+			PPU_readCGRAM(i + 1) >> 8,
+			PPU_readCGRAM(i + 2) & 0xff,
+			PPU_readCGRAM(i + 2) >> 8,
+			PPU_readCGRAM(i + 3) & 0xff,
+			PPU_readCGRAM(i + 3) >> 8,
+			PPU_readCGRAM(i + 4) & 0xff,
+			PPU_readCGRAM(i + 4) >> 8,
+			PPU_readCGRAM(i + 5) & 0xff,
+			PPU_readCGRAM(i + 5) >> 8,
+			PPU_readCGRAM(i + 6) & 0xff,
+			PPU_readCGRAM(i + 6) >> 8,
+			PPU_readCGRAM(i + 7) & 0xff,
+			PPU_readCGRAM(i + 7) >> 8,
+			((PPU_readCGRAM(i) & 0xff) > 32) ? PPU_readCGRAM(i) & 0xff : '.',
+			((PPU_readCGRAM(i) >> 8) > 32) ? PPU_readCGRAM(i) >> 8 : '.',
+			((PPU_readCGRAM(i + 1) & 0xff) > 32) ? PPU_readCGRAM(i + 1) & 0xff : '.',
+			((PPU_readCGRAM(i + 1) >> 8) > 32) ? PPU_readCGRAM(i + 1) >> 8 : '.',
+			((PPU_readCGRAM(i + 2) & 0xff) > 32) ? PPU_readCGRAM(i + 2) & 0xff : '.'
 		);
 		s.append((string)title);
 	}
@@ -264,38 +253,38 @@ void showVRAMMap() {
 	for (int i = 0; i < 0x8000; i += 0x8) {
 		char title[85];
 		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x     |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i*2,
-			readFromVRAM(i) & 0xff,
-			readFromVRAM(i) >> 8,
-			readFromVRAM(i + 1) & 0xff,
-			readFromVRAM(i + 1) >> 8,
-			readFromVRAM(i + 2) & 0xff,
-			readFromVRAM(i + 2) >> 8,
-			readFromVRAM(i + 3) & 0xff,
-			readFromVRAM(i + 3) >> 8,
-			readFromVRAM(i + 4) & 0xff,
-			readFromVRAM(i + 4) >> 8,
-			readFromVRAM(i + 5) & 0xff,
-			readFromVRAM(i + 5) >> 8,
-			readFromVRAM(i + 6) & 0xff,
-			readFromVRAM(i + 6) >> 8,
-			readFromVRAM(i + 7) & 0xff,
-			readFromVRAM(i + 7) >> 8,
-			((readFromVRAM(i) & 0xff) > 32) ? readFromVRAM(i) & 0xff : '.',
-			((readFromVRAM(i) >> 8) > 32) ? readFromVRAM(i) >> 8 : '.',
-			((readFromVRAM(i + 1) & 0xff) > 32) ? readFromVRAM(i + 1) & 0xff : '.',
-			((readFromVRAM(i + 1) >> 8) > 32) ? readFromVRAM(i + 1) >> 8 : '.',
-			((readFromVRAM(i + 2) & 0xff) > 32) ? readFromVRAM(i + 2) & 0xff : '.',
-			((readFromVRAM(i + 2) >> 8) > 32) ? readFromVRAM(i + 2) >> 8 : '.',
-			((readFromVRAM(i + 3) & 0xff) > 32) ? readFromVRAM(i + 3) & 0xff : '.',
-			((readFromVRAM(i + 3) >> 8) > 32) ? readFromVRAM(i + 3) >> 8 : '.',
-			((readFromVRAM(i + 4) & 0xff) > 32) ? readFromVRAM(i + 4) & 0xff : '.',
-			((readFromVRAM(i + 4) >> 8) > 32) ? readFromVRAM(i + 4) >> 8 : '.',
-			((readFromVRAM(i + 5) & 0xff) > 32) ? readFromVRAM(i + 5) & 0xff : '.',
-			((readFromVRAM(i + 5) >> 8) > 32) ? readFromVRAM(i + 5) >> 8 : '.',
-			((readFromVRAM(i + 6) & 0xff) > 32) ? readFromVRAM(i + 6) & 0xff : '.',
-			((readFromVRAM(i + 6) >> 8) > 32) ? readFromVRAM(i + 6) >> 8 : '.',
-			((readFromVRAM(i + 7) & 0xff) > 32) ? readFromVRAM(i + 7) & 0xff : '.',
-			((readFromVRAM(i + 7) >> 8) > 32) ? readFromVRAM(i + 7) >> 8 : '.'
+			PPU_readVRAM(i) & 0xff,
+			PPU_readVRAM(i) >> 8,
+			PPU_readVRAM(i + 1) & 0xff,
+			PPU_readVRAM(i + 1) >> 8,
+			PPU_readVRAM(i + 2) & 0xff,
+			PPU_readVRAM(i + 2) >> 8,
+			PPU_readVRAM(i + 3) & 0xff,
+			PPU_readVRAM(i + 3) >> 8,
+			PPU_readVRAM(i + 4) & 0xff,
+			PPU_readVRAM(i + 4) >> 8,
+			PPU_readVRAM(i + 5) & 0xff,
+			PPU_readVRAM(i + 5) >> 8,
+			PPU_readVRAM(i + 6) & 0xff,
+			PPU_readVRAM(i + 6) >> 8,
+			PPU_readVRAM(i + 7) & 0xff,
+			PPU_readVRAM(i + 7) >> 8,
+			((PPU_readVRAM(i) & 0xff) > 32) ? PPU_readVRAM(i) & 0xff : '.',
+			((PPU_readVRAM(i) >> 8) > 32) ? PPU_readVRAM(i) >> 8 : '.',
+			((PPU_readVRAM(i + 1) & 0xff) > 32) ? PPU_readVRAM(i + 1) & 0xff : '.',
+			((PPU_readVRAM(i + 1) >> 8) > 32) ? PPU_readVRAM(i + 1) >> 8 : '.',
+			((PPU_readVRAM(i + 2) & 0xff) > 32) ? PPU_readVRAM(i + 2) & 0xff : '.',
+			((PPU_readVRAM(i + 2) >> 8) > 32) ? PPU_readVRAM(i + 2) >> 8 : '.',
+			((PPU_readVRAM(i + 3) & 0xff) > 32) ? PPU_readVRAM(i + 3) & 0xff : '.',
+			((PPU_readVRAM(i + 3) >> 8) > 32) ? PPU_readVRAM(i + 3) >> 8 : '.',
+			((PPU_readVRAM(i + 4) & 0xff) > 32) ? PPU_readVRAM(i + 4) & 0xff : '.',
+			((PPU_readVRAM(i + 4) >> 8) > 32) ? PPU_readVRAM(i + 4) >> 8 : '.',
+			((PPU_readVRAM(i + 5) & 0xff) > 32) ? PPU_readVRAM(i + 5) & 0xff : '.',
+			((PPU_readVRAM(i + 5) >> 8) > 32) ? PPU_readVRAM(i + 5) >> 8 : '.',
+			((PPU_readVRAM(i + 6) & 0xff) > 32) ? PPU_readVRAM(i + 6) & 0xff : '.',
+			((PPU_readVRAM(i + 6) >> 8) > 32) ? PPU_readVRAM(i + 6) >> 8 : '.',
+			((PPU_readVRAM(i + 7) & 0xff) > 32) ? PPU_readVRAM(i + 7) & 0xff : '.',
+			((PPU_readVRAM(i + 7) >> 8) > 32) ? PPU_readVRAM(i + 7) >> 8 : '.'
 		);
 		s.append((string)title);
 	}

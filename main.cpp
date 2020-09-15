@@ -56,7 +56,8 @@ bool unpaused = true;
 int lastcyc = 0;
 int ppus = 0;
 
-uint16_t w = 0;
+u16 w = 0;
+u16 ppu_cycles_left;
 
 int main()
 {
@@ -64,18 +65,19 @@ int main()
 	//	load cartridge
 	loadROM(filename);
 
-	initPPU(filename);
+	PPU_init(filename);
 	initAPU();
 
 	while (1) {
 
 		if (unpaused) {
 			lastcyc = stepCPU();
-			w += lastcyc;
-			if (w > 10000) {
-				w = 0;
-				stepPPU();
-			}
+			w += lastcyc * 6;				//	6 because we assume FastROM for every access for now, and we want to calculate the emulator in Master Cycles
+			
+			ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
+			PPU_step( ppu_cycles_left / 4 );
+			ppu_cycles_left -= (ppu_cycles_left / 4);
+
 			stepAPU(lastcyc);
 		}
 		handleWindowEvents(event);

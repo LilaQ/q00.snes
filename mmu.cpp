@@ -23,7 +23,7 @@ vector<u8> memory(0xffffff);
 vector<u8> cartridge_memory;
 
 void reset() {
-	resetPPU();
+	PPU_reset();
 	resetCPU();
 }
 
@@ -127,8 +127,8 @@ void loadROM(string filename) {
 	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
 	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
 
-	resetPPU();
-	setTitle(filename);
+	PPU_reset();
+	PPU_setTitle(filename);
 	resetCPU();
 }
 
@@ -183,28 +183,31 @@ u8 readFromMem(u32 fulladr) {
 					memory[0x2116] = _t & 0xff;
 					memory[0x2117] = _t >> 8;
 				}
-				return (adr == 0x2139) ? readFromVRAM(adr) & 0xff : readFromVRAM(adr) >> 8;
+				return (adr == 0x2139) ? PPU_readVRAM(adr) & 0xff : PPU_readVRAM(adr) >> 8;
 				break;
 			}
 			case 0x213b:			//	PPU - CGDATA - Palette CGRAM Data Read (R)
-				return readFromCGRAM(memory[0x2121]);
+				return PPU_readCGRAM(memory[0x2121]);
 				memory[0x2121]++;
 				break;
 			case 0x4210:			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
 				//	TODO add the NMI flag
 				//	2 is always set, this inidicates the CPU version
-				if (NMI == 0x42) {
+				/*if (NMI == 0x42) {
 					NMI = 0xc2;
 					return NMI;
 				}
 				if (NMI == 0xc2) {
 					NMI = 0x42;
 					return NMI;
-				}
+				}*/
+				return (PPU_getVBlankNMIFlag() << 7) | 0x02;
 				break;
 			case 0x4211:			//	PPU Interrupts - H/V-Timer IRQ Flag (R) [Read/Ack]
+				return 0;
 				break;
 			case 0x4212:			//	PPU Interrupts - H/V-Blank Flag and Joypad Busy Flag (R)
+				return 0;
 				break;
 			default:
 				return memory[(bank_nr << 16) | adr];
@@ -212,6 +215,7 @@ u8 readFromMem(u32 fulladr) {
 			}
 		case 0x7e:					//	WRAM (work RAM)
 		case 0x7f:
+			return 0;
 			break;
 		default:
 			return memory[(bank_nr << 16) | adr];
@@ -271,15 +275,15 @@ void writeToMem(u8 val, u32 fulladr) {
 				memory[0x2117] = _t >> 8;
 			}
 			if (adr == 0x2118) {
-				writeToVRAMlow(val, _adr);
+				PPU_writeVRAMlow(val, _adr);
 			}
 			else {
-				writeToVRAMhigh(val, _adr);
+				PPU_writeVRAMhigh(val, _adr);
 			}
 			break;
 		}
 		case 0x2122:			//	PPU - CGDATA - Palette CGRAM Data Write (W)
-			writeToCGRAM(val, memory[0x2121]);
+			PPU_writeCGRAM(val, memory[0x2121]);
 			//memory[0x2121]++;
 			break;
 		case 0x4200:			//	PPU Interrupts - Interrupt Enable and Joypad Requests (W)

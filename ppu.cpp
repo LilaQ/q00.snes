@@ -28,8 +28,10 @@ SDL_Texture *TEXTURE[4];
 u8 BGS[4][FB_SIZE];
 u8 DEBUG[FB_SIZE];
 u8 framebuffer[FB_SIZE];
+u16 RENDER_X = 0, RENDER_Y = 0;
+bool VBlankNMIFlag = 0;
 
-void initPPU(string filename) {
+void PPU_init(string filename) {
 
 	/*
 		MAIN WINDOW
@@ -63,11 +65,11 @@ void initPPU(string filename) {
 
 }
 
-void setTitle(string filename) {
+void PPU_setTitle(string filename) {
 	SDL_SetWindowTitle(window, filename.c_str());
 }
 
-void resetPPU() {
+void PPU_reset() {
 	memset(BGS[0], 0, sizeof(BGS[0]));
 	memset(BGS[1], 0, sizeof(BGS[1]));
 	memset(BGS[2], 0, sizeof(BGS[2]));
@@ -82,29 +84,33 @@ void resetPPU() {
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
 }
 
+bool PPU_getVBlankNMIFlag() {
+	return VBlankNMIFlag;
+}
+
 /*
 	DRAW FRAME
 */
-void drawFrame() {
+void PPU_drawFrame() {
 
 	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u8) * 4);
-	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u8) * 4);
+	/*SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u8) * 4);
 	SDL_UpdateTexture(TEXTURE[2], NULL, BGS[2], 256 * sizeof(u8) * 4);
-	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u8) * 4);
+	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u8) * 4);*/
 
 	SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
+	/*SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
 	SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);*/
 	SDL_RenderPresent(renderer);
 	
 }
 
-void writeToFB(u8 *BG, u16 x, u16 y, u32 v) {
-	BG[y * 4 * 256 + x * 4] = v >> 24;
-	BG[y * 4 * 256 + x * 4 + 1] = v >> 16 & 0xff;
-	BG[y * 4 * 256 + x * 4 + 2] = v >> 8 & 0xff;
-	BG[y * 4 * 256 + x * 4 + 3] = v & 0xff;
+void writeToFB(u8 *BG, u16 x, u16 y, u16 width, u32 v) {
+	BG[y * 4 * width + x * 4] = v >> 24;
+	BG[y * 4 * width + x * 4 + 1] = v >> 16 & 0xff;
+	BG[y * 4 * width + x * 4 + 2] = v >> 8 & 0xff;
+	BG[y * 4 * width + x * 4 + 3] = v & 0xff;
 }
 
 u32 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
@@ -117,13 +123,13 @@ u32 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
 	return (r << 24) | (g << 16) | (b << 8) | 0xff;
 }
 
-void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y) {
+void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
-	const u16 offset = (scry / 8) * 32 + (scrx / 8);
+	const u16 offset = (scry / 8) * 32 + (scrx / 8);					
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u16 tile_address = tile_id * 8;
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
@@ -135,10 +141,10 @@ void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_hi = VRAM[tile_address + i] >> 8;
 	const u8 b_lo = VRAM[tile_address + i] & 0xff;
 	const u8 v = ((b_lo >> (7 - j)) & 1) + (2 * ((b_hi >> (7 - j)) & 1));
-	writeToFB(BG, orgx, orgy, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
+	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
 }
 
-void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y) {
+void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -158,16 +164,20 @@ void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_3 = VRAM[tile_address + i + 8] & 0xff;
 	const u8 b_4 = VRAM[tile_address + i + 8] >> 8;
 	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1));
-	writeToFB(BG, orgx, orgy, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
+	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
 }
 
-void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base, u16 scroll_x, u16 scroll_y) {
+void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
-	const u16 offset = (scry / 8) * 32 + (scrx / 8);
+	const u16 offset =
+		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		((scrx % 256) / 8) +
+		(scrx / 256) * 0x400 +
+		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_base_adr = bg_base + offset;
 	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
@@ -186,10 +196,13 @@ void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_7 = VRAM[tile_address + i + 24] & 0xff;
 	const u8 b_8 = VRAM[tile_address + i + 24] >> 8;
 	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1)) + (16 * ((b_5 >> (7 - j)) & 1)) + (32 * ((b_6 >> (7 - j)) & 1)) + (64 * ((b_7 >> (7 - j)) & 1)) + (128 * ((b_8 >> (7 - j)) & 1));
-	writeToFB(BG, orgx, orgy, getRGBAFromCGRAM(v, b_palette_nr, 0, 8));
+	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 0, 8));
+	if (orgy == 510 && getRGBAFromCGRAM(v, b_palette_nr, 0, 8) == 0x000000)
+		printf("");
 }
 
-void stepPPU() {
+void PPU_render() {
+	const u16 texture_width = 256;
 	u16 bg_base;
 	u8 bg_size_w, bg_size_h, bg_palette_base;
 	u16 tile_base[4] = {
@@ -204,7 +217,7 @@ void stepPPU() {
 	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
 		if (((readFromMem(0x212c) >> bg_id) & 1) > 0) {							//	Check if the BG (1/2/3/4) is enabled
 			u8 bg_mode = readFromMem(0x2105) & 0b111;
-			if (BG_MODES[bg_mode][bg_id] != COLOR_DEPTH::CD_DISABLED) {
+			if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 				scroll_x = readFromMem(0x210d + (2 * bg_id)) & 0x3ff;			//	Scroll-X value for the current BG
 				scroll_y = readFromMem(0x210e + (2 * bg_id)) & 0x3ff;			//	Scroll-Y value for the current BG
 				scroll_x = 100;
@@ -218,35 +231,58 @@ void stepPPU() {
 				case 0b10: bg_size_w = 32; bg_size_h = 64; break;
 				case 0b11: bg_size_w = 64; bg_size_h = 64; break;
 				}
-				for (u16 y = 0; y < 256; y++) {
-					for (u16 x = 0; x < 256; x++) {
-						if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_2BPP_4_COLORS)
-							renderBGat2BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y);
-						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_4BPP_16_COLORS)
-							renderBGat4BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y);
-						else if (BG_MODES[bg_mode][bg_id] == COLOR_DEPTH::CD_8BPP_256_COLORS)
-							renderBGat8BPP(x, y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], scroll_x, scroll_y);
-					}
-				}
+				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
+					renderBGat2BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y, texture_width);
+				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
+					renderBGat4BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y, texture_width);
+				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
+					renderBGat8BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], scroll_x, scroll_y, texture_width);
 			}
 		}
 	}
-
-	drawFrame();
 }
 
-void writeToVRAMlow(u8 val, u16 adr) {
+void PPU_step(u8 steps) {
+
+	for (u8 s = 0; s < steps; s++) {
+
+		RENDER_X++;
+		if (RENDER_X == 256) {					//	H-Blank starts
+
+		}		
+		else if (RENDER_X == 341) {				//	PAL Line, usually takes up 341 dot cycles (unless interlace=on, field=1, line=311 it will be one additional dot cycle)
+			RENDER_X = 0;
+			RENDER_Y++;
+			if (RENDER_Y == 241) {				//	V-Blank starts
+				VBlankNMIFlag = true;
+			}
+			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
+				RENDER_Y = 0;
+				VBlankNMIFlag = false;
+			}
+		}
+		PPU_render();
+		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
+			PPU_drawFrame();
+			printf("Scroll x : %x  y: %x\n", readFromMem(0x210b), readFromMem(0x210c));
+		}
+		
+	}
+
+}
+
+void PPU_writeVRAMlow(u8 val, u16 adr) {
 	VRAM[adr & 0x7fff] = (VRAM[adr & 0x7fff] & 0xff00) | val;
 }
-void writeToVRAMhigh(u8 val, u16 adr) {
+void PPU_writeVRAMhigh(u8 val, u16 adr) {
 	VRAM[adr & 0x7fff] = (VRAM[adr & 0x7fff] & 0xff) | (val << 8);
 }
 
-u16 readFromVRAM(u16 adr) {
+u16 PPU_readVRAM(u16 adr) {
 	return VRAM[adr & 0x7fff];
 }
 
-void writeToCGRAM(u8 val, u8 adr) {
+void PPU_writeCGRAM(u8 val, u8 adr) {
 	//	if address is even, we just remember the current value
 	if (!CGRAM_Flipflip) {
 		CGRAM_Lsb = val;
@@ -260,7 +296,7 @@ void writeToCGRAM(u8 val, u8 adr) {
 	}
 }
 
-u16 readFromCGRAM(u8 adr) {
+u16 PPU_readCGRAM(u8 adr) {
 	return CGRAM[adr];
 }
 
@@ -290,7 +326,7 @@ void debug_drawBG(u8 id) {
 		(readFromMem(0x210c) >> 8) * 0x1000,
 	};
 	u8 bg_mode = readFromMem(0x2105) & 0b111;
-	if (BG_MODES[bg_mode][id] != COLOR_DEPTH::CD_DISABLED) {
+	if (PPU_BG_MODES[bg_mode][id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 		bg_palette_base = 0x20 * id;									//	The offset inside CGRAM
 		bg_base = ((readFromMem(0x2107 + id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
 		switch (readFromMem(0x2107 + id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
@@ -301,18 +337,19 @@ void debug_drawBG(u8 id) {
 		}
 		for (u16 y = 0; y < tex_h; y++) {
 			for (u16 x = 0; x < tex_w; x++) {
-				if (BG_MODES[bg_mode][id] == COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, bg_palette_base, 0, 0);
-				else if (BG_MODES[bg_mode][id] == COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, bg_palette_base, 0, 0);
-				else if (BG_MODES[bg_mode][id] == COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[id], 0, 0);
+				if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
+					renderBGat2BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, bg_palette_base, 0, 0, bg_size_w * 8);
+				else if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
+					renderBGat4BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, bg_palette_base, 0, 0, bg_size_w * 8);
+				else if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
+					renderBGat8BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[id], 0, 0, bg_size_w * 8);
 			}
 		}
 	}
 
 	//	create window
-	SDL_CreateWindowAndRenderer(tex_w, tex_h, 0, &tWindows, &tRenderer);
+	tWindows = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, tex_w, tex_h, SDL_WINDOW_SHOWN);
+	tRenderer = SDL_CreateRenderer(tWindows, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
 	SDL_SetWindowSize(tWindows, tex_w * 2, tex_h * 2);
 
 	//	create texture
@@ -320,7 +357,7 @@ void debug_drawBG(u8 id) {
 
 	//	window decorations
 	char title[50];
-	snprintf(title, sizeof title, "[ BG%d ]", id+1);
+	snprintf(title, sizeof title, "[ BG%d | %dx%d ]", id+1, tex_w, tex_h);
 	SDL_SetWindowTitle(tWindows, title);
 
 	//	draw texture to renderer
