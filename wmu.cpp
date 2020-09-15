@@ -214,7 +214,18 @@ void showCGRAMMap() {
 			((PPU_readCGRAM(i) >> 8) > 32) ? PPU_readCGRAM(i) >> 8 : '.',
 			((PPU_readCGRAM(i + 1) & 0xff) > 32) ? PPU_readCGRAM(i + 1) & 0xff : '.',
 			((PPU_readCGRAM(i + 1) >> 8) > 32) ? PPU_readCGRAM(i + 1) >> 8 : '.',
-			((PPU_readCGRAM(i + 2) & 0xff) > 32) ? PPU_readCGRAM(i + 2) & 0xff : '.'
+			((PPU_readCGRAM(i + 2) & 0xff) > 32) ? PPU_readCGRAM(i + 2) & 0xff : '.',
+			((PPU_readCGRAM(i + 2) >> 8) > 32) ? PPU_readCGRAM(i + 2) >> 8 : '.',
+			((PPU_readCGRAM(i + 3) & 0xff) > 32) ? PPU_readCGRAM(i + 3) & 0xff : '.',
+			((PPU_readCGRAM(i + 3) >> 8) > 32) ? PPU_readCGRAM(i + 3) >> 8 : '.',
+			((PPU_readCGRAM(i + 4) & 0xff) > 32) ? PPU_readCGRAM(i + 4) & 0xff : '.',
+			((PPU_readCGRAM(i + 4) >> 8) > 32) ? PPU_readCGRAM(i + 4) >> 8 : '.',
+			((PPU_readCGRAM(i + 5) & 0xff) > 32) ? PPU_readCGRAM(i + 5) & 0xff : '.',
+			((PPU_readCGRAM(i + 5) >> 8) > 32) ? PPU_readCGRAM(i + 5) >> 8 : '.',
+			((PPU_readCGRAM(i + 6) & 0xff) > 32) ? PPU_readCGRAM(i + 6) & 0xff : '.',
+			((PPU_readCGRAM(i + 6) >> 8) > 32) ? PPU_readCGRAM(i + 6) >> 8 : '.',
+			((PPU_readCGRAM(i + 7) & 0xff) > 32) ? PPU_readCGRAM(i + 7) & 0xff : '.',
+			((PPU_readCGRAM(i + 7) >> 8) > 32) ? PPU_readCGRAM(i + 7) >> 8 : '.'
 		);
 		s.append((string)title);
 	}

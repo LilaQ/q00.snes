@@ -20,7 +20,7 @@ using namespace::std;
 u16 VRAM[0x8000];	//	64 kbytes (16bit * 0x8000 [ 32768 ] )
 u16 CGRAM[0x100];	//	512 bytes (16bit * 0x100 [ 256 ] ) 
 u8 CGRAM_Lsb;
-bool CGRAM_Flipflip = false;
+bool CGRAM_Flipflop = false;
 const int FB_SIZE = 256 * 256 * 4 * 4;
 SDL_Renderer *renderer;
 SDL_Window *window;
@@ -30,6 +30,12 @@ u8 DEBUG[FB_SIZE];
 u8 framebuffer[FB_SIZE];
 u16 RENDER_X = 0, RENDER_Y = 0;
 bool VBlankNMIFlag = 0;
+
+//	BG Scrolling
+bool BGSCROLLX_Flipflop[4] = { false, false, false, false };
+bool BGSCROLLY_Flipflop[4] = { false, false, false, false };
+u16 BGSCROLLX[4] = { 0, 0, 0, 0 };
+u16 BGSCROLLY[4] = { 0, 0, 0, 0 };
 
 void PPU_init(string filename) {
 
@@ -94,14 +100,14 @@ bool PPU_getVBlankNMIFlag() {
 void PPU_drawFrame() {
 
 	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u8) * 4);
-	/*SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u8) * 4);
+	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u8) * 4);
 	SDL_UpdateTexture(TEXTURE[2], NULL, BGS[2], 256 * sizeof(u8) * 4);
-	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u8) * 4);*/
+	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u8) * 4);
 
 	SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-	/*SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
 	SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);*/
+	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
 	SDL_RenderPresent(renderer);
 	
 }
@@ -129,7 +135,11 @@ void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
-	const u16 offset = (scry / 8) * 32 + (scrx / 8);					
+	const u16 offset =
+		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		((scrx % 256) / 8) +
+		(scrx / 256) * 0x400 +
+		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u16 tile_address = tile_id * 8;
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
@@ -150,7 +160,11 @@ void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
-	const u16 offset = (scry / 8) * 32 + (scrx / 8);
+	const u16 offset =
+		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		((scrx % 256) / 8) +
+		(scrx / 256) * 0x400 +
+		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u16 tile_address = tile_id * 16;
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
@@ -211,17 +225,12 @@ void PPU_render() {
 		(readFromMem(0x210c) & 0xff) * 0x1000,
 		(readFromMem(0x210c) >> 8) * 0x1000,
 	};
-	u16 scroll_x, scroll_y;
 
 	//	iterate all BGs
 	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
 		if (((readFromMem(0x212c) >> bg_id) & 1) > 0) {							//	Check if the BG (1/2/3/4) is enabled
 			u8 bg_mode = readFromMem(0x2105) & 0b111;
 			if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
-				scroll_x = readFromMem(0x210d + (2 * bg_id)) & 0x3ff;			//	Scroll-X value for the current BG
-				scroll_y = readFromMem(0x210e + (2 * bg_id)) & 0x3ff;			//	Scroll-Y value for the current BG
-				scroll_x = 100;
-				scroll_y = 100;
 				bg_palette_base = 0x20 * bg_id;									//	The offset inside CGRAM
 				bg_base = ((readFromMem(0x2107 + bg_id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
 
@@ -232,11 +241,11 @@ void PPU_render() {
 				case 0b11: bg_size_w = 64; bg_size_h = 64; break;
 				}
 				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y, texture_width);
+					renderBGat2BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, BGSCROLLX[bg_id], BGSCROLLY[bg_id], texture_width);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, scroll_x, scroll_y, texture_width);
+					renderBGat4BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, BGSCROLLX[bg_id], BGSCROLLY[bg_id], texture_width);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], scroll_x, scroll_y, texture_width);
+					renderBGat8BPP(RENDER_X, RENDER_Y, BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id], texture_width);
 			}
 		}
 	}
@@ -261,7 +270,9 @@ void PPU_step(u8 steps) {
 				VBlankNMIFlag = false;
 			}
 		}
-		PPU_render();
+		if (RENDER_X < 256 && RENDER_Y < 241) {	//	Only render current pixel(s) if we're not in any blanking period
+			PPU_render();
+		}
 		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			PPU_drawFrame();
 			printf("Scroll x : %x  y: %x\n", readFromMem(0x210b), readFromMem(0x210c));
@@ -284,14 +295,14 @@ u16 PPU_readVRAM(u16 adr) {
 
 void PPU_writeCGRAM(u8 val, u8 adr) {
 	//	if address is even, we just remember the current value
-	if (!CGRAM_Flipflip) {
+	if (!CGRAM_Flipflop) {
 		CGRAM_Lsb = val;
-		CGRAM_Flipflip = true;
+		CGRAM_Flipflop = true;
 	}
 	//	else concat the remembered value with the current one, and store it to adr-1
 	else {
 		CGRAM[adr] = (val << 8) | CGRAM_Lsb;
-		CGRAM_Flipflip = false;
+		CGRAM_Flipflop = false;
 		writeToMem(readFromMem(0x2121) + 1, 0x2121);
 	}
 }
@@ -300,6 +311,27 @@ u16 PPU_readCGRAM(u8 adr) {
 	return CGRAM[adr];
 }
 
+void PPU_writeBGScrollX(u8 bg_id, u8 val) {
+	if (!BGSCROLLX_Flipflop[bg_id]) {
+		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0x3f00) | val;
+		BGSCROLLX_Flipflop[bg_id] = true;
+	}
+	else {
+		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0xff) | ((val & 0x3f) << 8);
+		BGSCROLLX_Flipflop[bg_id] = false;
+	}
+}
+
+void PPU_writeBGScrollY(u8 bg_id, u8 val) {
+	if (!BGSCROLLY_Flipflop[bg_id]) {
+		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0x3f00) | val;
+		BGSCROLLY_Flipflop[bg_id] = true;
+	}
+	else {
+		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0xff) | ((val & 0x3f) << 8);
+		BGSCROLLY_Flipflop[bg_id] = false;
+	}
+}
 
 
 //		DEBUG

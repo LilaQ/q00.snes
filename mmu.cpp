@@ -230,7 +230,33 @@ void writeToMem(u8 val, u32 fulladr) {
 	case 0x00:
 		switch (adr)
 		{
-		case 0x2118:
+
+		case 0x210d:				//	BG1 Horizontal Scroll
+			PPU_writeBGScrollX(0, val);
+			break;	
+		case 0x210e:				//	BG1 Vertical Scroll
+			PPU_writeBGScrollY(0, val);
+			break;
+		case 0x210f:				//	BG2 Horizontal Scroll
+			PPU_writeBGScrollX(1, val);
+			break;
+		case 0x2110:				//	BG2 Vertical Scroll
+			PPU_writeBGScrollY(1, val);
+			break;
+		case 0x2111:				//	BG3 Horizontal Scroll
+			PPU_writeBGScrollX(2, val);
+			break;
+		case 0x2112:				//	BG3 Vertical Scroll
+			PPU_writeBGScrollY(2, val);
+			break;
+		case 0x2113:				//	BG4 Horizontal Scroll
+			PPU_writeBGScrollX(3, val);
+			break;
+		case 0x2114:				//	BG4 Vertical Scroll
+			PPU_writeBGScrollY(3, val);
+			break;
+
+		case 0x2118:				//	PPU	Data Write
 		case 0x2119: {
 			u16 _adr = (memory[0x2117] << 8) | memory[0x2116];
 			u8 _v_hi_lo = memory[0x2115] >> 7;
