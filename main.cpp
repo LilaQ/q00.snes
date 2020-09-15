@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <chrono>
+#include <thread>
 #include "mmu.h"
 #include "cpu.h"
 #include "ppu.h"
@@ -77,6 +79,7 @@ int main()
 			ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
 			PPU_step( ppu_cycles_left / 4 );
 			ppu_cycles_left -= (ppu_cycles_left / 4);
+			//std::this_thread::sleep_for(std::chrono::nanoseconds(5));
 
 			stepAPU(lastcyc);
 		}

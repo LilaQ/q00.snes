@@ -45,7 +45,7 @@ void PPU_init(string filename) {
 
 	//	init and create window and renderer
 	SDL_Init(SDL_INIT_VIDEO);
-	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
 	SDL_CreateWindowAndRenderer(256, 239, 0, &window, &renderer);
 	SDL_SetWindowSize(window, 512, 478);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
@@ -88,10 +88,6 @@ void PPU_reset() {
 	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
-}
-
-bool PPU_getVBlankNMIFlag() {
-	return VBlankNMIFlag;
 }
 
 /*
@@ -275,7 +271,7 @@ void PPU_step(u8 steps) {
 		}
 		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			PPU_drawFrame();
-			printf("Scroll x : %x  y: %x\n", readFromMem(0x210b), readFromMem(0x210c));
+			printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
 		
 	}
@@ -313,7 +309,7 @@ u16 PPU_readCGRAM(u8 adr) {
 
 void PPU_writeBGScrollX(u8 bg_id, u8 val) {
 	if (!BGSCROLLX_Flipflop[bg_id]) {
-		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0x3f00) | val;
+		BGSCROLLX[bg_id] = val;
 		BGSCROLLX_Flipflop[bg_id] = true;
 	}
 	else {
@@ -324,13 +320,20 @@ void PPU_writeBGScrollX(u8 bg_id, u8 val) {
 
 void PPU_writeBGScrollY(u8 bg_id, u8 val) {
 	if (!BGSCROLLY_Flipflop[bg_id]) {
-		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0x3f00) | val;
+		BGSCROLLY[bg_id] =  val;
 		BGSCROLLY_Flipflop[bg_id] = true;
 	}
 	else {
 		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0xff) | ((val & 0x3f) << 8);
 		BGSCROLLY_Flipflop[bg_id] = false;
 	}
+}
+
+//	reading the VBlank NMI Flag automatically aknowledges it
+bool PPU_getVBlankNMIFlag() {
+	bool res = VBlankNMIFlag;
+	VBlankNMIFlag = false;
+	return res;
 }
 
 
