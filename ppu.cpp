@@ -45,7 +45,7 @@ void PPU_init(string filename) {
 
 	//	init and create window and renderer
 	SDL_Init(SDL_INIT_VIDEO);
-	SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
+	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
 	SDL_CreateWindowAndRenderer(256, 239, 0, &window, &renderer);
 	SDL_SetWindowSize(window, 512, 478);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
@@ -137,16 +137,18 @@ void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg
 		(scrx / 256) * 0x400 +
 		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
-	const u16 tile_address = tile_id * 8;
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
 	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
 	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
-	const u8 b_hi = VRAM[tile_address + i] >> 8;
-	const u8 b_lo = VRAM[tile_address + i] & 0xff;
-	const u8 v = ((b_lo >> (7 - j)) & 1) + (2 * ((b_hi >> (7 - j)) & 1));
+	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
+	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+	const u16 tile_address = tile_id * 8 + v_shift;					//	this doesn't have tile_base like 8bpp, fix?
+	const u8 b_hi = VRAM[tile_address] >> 8;
+	const u8 b_lo = VRAM[tile_address] & 0xff;
+	const u8 v = ((b_lo >> h_shift) & 1) + (2 * ((b_hi >> h_shift) & 1));
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
 }
 
@@ -162,18 +164,23 @@ void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 		(scrx / 256) * 0x400 +
 		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
-	const u16 tile_address = tile_id * 16;
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
 	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
 	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
-	const u8 b_1 = VRAM[tile_address + i] & 0xff;
-	const u8 b_2 = VRAM[tile_address + i] >> 8;
-	const u8 b_3 = VRAM[tile_address + i + 8] & 0xff;
-	const u8 b_4 = VRAM[tile_address + i + 8] >> 8;
-	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1));
+	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
+	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+	const u16 tile_address = tile_id * 16 + v_shift;					//	this doesn't have tile_base like 8bpp, fix?
+	const u8 b_1 = VRAM[tile_address] & 0xff;
+	const u8 b_2 = VRAM[tile_address] >> 8;
+	const u8 b_3 = VRAM[tile_address + 8] & 0xff;
+	const u8 b_4 = VRAM[tile_address + 8] >> 8;
+	const u16 v =	((b_1 >> h_shift) & 1) + 
+					(2 * ((b_2 >> h_shift) & 1)) +
+					(4 * ((b_3 >> h_shift) & 1)) +
+					(8 * ((b_4 >> h_shift) & 1));
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
 }
 
@@ -196,16 +203,25 @@ void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
-	const u16 tile_address = tile_id * 32 + tile_base;
-	const u8 b_1 = VRAM[tile_address + i] & 0xff;
-	const u8 b_2 = VRAM[tile_address + i] >> 8;
-	const u8 b_3 = VRAM[tile_address + i + 8] & 0xff;
-	const u8 b_4 = VRAM[tile_address + i + 8] >> 8;
-	const u8 b_5 = VRAM[tile_address + i + 16] & 0xff;
-	const u8 b_6 = VRAM[tile_address + i + 16] >> 8;
-	const u8 b_7 = VRAM[tile_address + i + 24] & 0xff;
-	const u8 b_8 = VRAM[tile_address + i + 24] >> 8;
-	const u16 v = ((b_1 >> (7 - j)) & 1) + (2 * ((b_2 >> (7 - j)) & 1)) + (4 * ((b_3 >> (7 - j)) & 1)) + (8 * ((b_4 >> (7 - j)) & 1)) + (16 * ((b_5 >> (7 - j)) & 1)) + (32 * ((b_6 >> (7 - j)) & 1)) + (64 * ((b_7 >> (7 - j)) & 1)) + (128 * ((b_8 >> (7 - j)) & 1));
+	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
+	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+	const u16 tile_address = tile_id * 32 + tile_base + v_shift;
+	const u8 b_1 = VRAM[tile_address] & 0xff;
+	const u8 b_2 = VRAM[tile_address] >> 8;
+	const u8 b_3 = VRAM[tile_address + 8] & 0xff;
+	const u8 b_4 = VRAM[tile_address + 8] >> 8;
+	const u8 b_5 = VRAM[tile_address + 16] & 0xff;
+	const u8 b_6 = VRAM[tile_address + 16] >> 8;
+	const u8 b_7 = VRAM[tile_address + 24] & 0xff;
+	const u8 b_8 = VRAM[tile_address + 24] >> 8;
+	const u16 v =	(		(b_1 >> h_shift) & 1) + 
+					(2 *	((b_2 >> h_shift) & 1)) + 
+					(4 *	((b_3 >> h_shift) & 1)) + 
+					(8 *	((b_4 >> h_shift) & 1)) + 
+					(16 *	((b_5 >> h_shift) & 1)) + 
+					(32 *	((b_6 >> h_shift) & 1)) +
+					(64 *	((b_7 >> h_shift) & 1)) +
+					(128 *	((b_8 >> h_shift) & 1));
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 0, 8));
 	if (orgy == 510 && getRGBAFromCGRAM(v, b_palette_nr, 0, 8) == 0x000000)
 		printf("");
