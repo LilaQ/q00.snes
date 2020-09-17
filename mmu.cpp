@@ -191,16 +191,8 @@ u8 readFromMem(u32 fulladr) {
 				memory[0x2121]++;
 				break;
 			case 0x4210:			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
-				//	TODO add the NMI flag
-				//	2 is always set, this inidicates the CPU version
-				/*if (NMI == 0x42) {
-					NMI = 0xc2;
-					return NMI;
-				}
-				if (NMI == 0xc2) {
-					NMI = 0x42;
-					return NMI;
-				}*/
+				//	TODO there is NMI interrupt enable at $4200 that needs to be included somewhere around the flag
+				//	TDOD test with WAI instruction like here : https://wiki.superfamicom.org/using-the-nmi-vblank#toc-1
 				return (PPU_getVBlankNMIFlag() << 7) | 0x02;
 				break;
 			case 0x4211:			//	PPU Interrupts - H/V-Timer IRQ Flag (R) [Read/Ack]

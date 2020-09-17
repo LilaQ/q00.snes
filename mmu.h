@@ -209,6 +209,7 @@ public:
 };
 
 //	vectors
+//	TODO set by cartridge header
 static const u16 VECTOR_NATIVE_COP = 0xffe4;
 static const u16 VECTOR_NATIVE_BRK = 0xffe6;
 static const u16 VECTOR_NATIVE_ABORT = 0xffe8;

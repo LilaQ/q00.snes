@@ -8,6 +8,7 @@
 #include "ppu.h"
 #include "wmu.h"
 #include "cpu.h"
+#include "input.h"
 #ifdef _WIN32
 	#include <Windows.h>
 	#include <WinUser.h>
@@ -85,6 +86,7 @@ void PPU_setTitle(string filename) {
 }
 
 void PPU_reset() {
+	memset(framebuffer, 0, sizeof(framebuffer));
 	memset(BGS[0], 0, sizeof(BGS[0]));
 	memset(BGS[1], 0, sizeof(BGS[1]));
 	memset(BGS[2], 0, sizeof(BGS[2]));
@@ -125,23 +127,12 @@ void PPU_drawFrame() {
 }
 
 void writeToFB(u16 *BG, u16 x, u16 y, u16 width, u16 v) {
-	/*BG[y * 4 * width + x * 4] = v >> 24;
-	BG[y * 4 * width + x * 4 + 1] = v >> 16 & 0xff;
-	BG[y * 4 * width + x * 4 + 2] = v >> 8 & 0xff;
-	BG[y * 4 * width + x * 4 + 3] = v & 0xff;*/
 	BG[y * width + x] = v;
 }
 
 u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
-	u16 color = CGRAM[(id + palette * (bpp*bpp)) + palette_base];
-	if (!id)	//	all bits on zero results in using backdrop color
-		//color = CGRAM[0x00];
-		return 0x00000000;
-	/*const u8 r = (color & 0b11111) * 255 / 31;
-	const u8 g = ((color >> 5) & 0b11111) * 255 / 31;
-	const u8 b = ((color >> 10) & 0b11111) * 255 / 31;
-	return (r << 24) | (g << 16) | (b << 8) | 0xff;*/
-	return color << 1 | 1;
+	if (!id) return 0x00000000;	//	id 0 = transparency
+	return CGRAM[(id + palette * (bpp * bpp)) + palette_base] << 1 | 1;
 }
 
 void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
@@ -306,6 +297,7 @@ void PPU_step(u8 steps) {
 		}
 		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			PPU_drawFrame();
+			INPUT_stepJoypadAutoread();
 			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
 		
