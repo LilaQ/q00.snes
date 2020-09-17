@@ -22,7 +22,7 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "CPUASL.sfc";		//	-	Passed
 //string filename = "CPUBIT.sfc";		//	-	Passed
 //string filename = "CPUBRA.sfc";		//	-	Passed
-//string filename = "CPUCMP.sfc";		//	-	Passed
+string filename = "CPUCMP.sfc";		//	-	Passed
 //string filename = "CPUDEC.sfc";		//	-	Passed
 //string filename = "CPUEOR.sfc";		//	-	Passed
 //string filename = "CPUINC.sfc";		//	-	Passed
@@ -46,12 +46,13 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "8x8BG3Map2BPP32x328PAL.sfc";
 //string filename = "8x8BG4Map2BPP32x328PAL.sfc";
 //string filename = "8x8BGMap4BPP32x328PAL.sfc";
-string filename = "8x8BGMap8BPP32x32.sfc";
+//string filename = "8x8BGMap8BPP32x32.sfc";
 //string filename = "8x8BGMap8BPP32x64.sfc";
 //string filename = "8x8BGMap8BPP64x32.sfc";
 //string filename = "8x8BGMap8BPP64x64.sfc";
 //string filename = "8x8BGMap8BPP32x328PAL.sfc";
 //string filename = "smw.smc";
+//string filename = "snestest.smc";
 
 bool unpaused = true;
 
@@ -73,7 +74,7 @@ int main()
 	while (1) {
 
 		if (unpaused) {
-			lastcyc = stepCPU();
+			lastcyc = CPU_step();
 			w += lastcyc * 6;				//	6 because we assume FastROM for every access for now, and we want to calculate the emulator in Master Cycles
 			
 			ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles

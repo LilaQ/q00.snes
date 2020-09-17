@@ -109,7 +109,9 @@ void PPU_reset() {
 */
 void PPU_drawFrame() {
 
-	memset(BACKDROP, CGRAM[0x00] << 1 | 1, sizeof(BACKDROP));
+	//	16-bit arrays can't be filled with memset, so manual way
+	for (auto i = 0; i < sizeof(BACKDROP); i++)
+		BACKDROP[i] = (CGRAM[0x00] << 1) | 1;
 
 	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u16));
 	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u16));

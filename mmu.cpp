@@ -22,7 +22,17 @@ Cartridge cartridge;
 vector<u8> memory(0xffffff);
 vector<u8> cartridge_memory;
 
+void reset(string filename) {
+	PPU_setTitle(filename);
+	reset();
+}
+
 void reset() {
+	// experimental - wipe first 32k of memory, but only if CPU is not halted by STP instruction
+	if (!CPU_isStopped()) {
+		for (auto i = 0; i < 0x8000; i++)
+			memory[i] = 0x00;
+	}
 	PPU_reset();
 	resetCPU();
 }
@@ -107,7 +117,7 @@ void loadROM(string filename) {
 	}
 	cartridge.initSNESHeader(header);
 	
-	cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
+	/*cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
 	cout << "------------------------------------------------------\n";
 	cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
 	cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
@@ -125,11 +135,9 @@ void loadROM(string filename) {
  	cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
 	cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
 	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
-	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
+	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
 
-	PPU_reset();
-	PPU_setTitle(filename);
-	resetCPU();
+	reset(filename);
 }
 
 u16 NMI = 0xc2;
@@ -193,7 +201,15 @@ u8 readFromMem(u32 fulladr) {
 			case 0x4210:			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
 				//	TODO there is NMI interrupt enable at $4200 that needs to be included somewhere around the flag
 				//	TDOD test with WAI instruction like here : https://wiki.superfamicom.org/using-the-nmi-vblank#toc-1
-				return (PPU_getVBlankNMIFlag() << 7) | 0x02;
+				if (NMI == 0x42) {
+					NMI = 0xc2;
+					return NMI;
+				}
+				if (NMI == 0xc2) {
+					NMI = 0x42;
+					return NMI;
+				}
+				//return (PPU_getVBlankNMIFlag() << 7) | 0x02;
 				break;
 			case 0x4211:			//	PPU Interrupts - H/V-Timer IRQ Flag (R) [Read/Ack]
 				return 0;
@@ -337,7 +353,7 @@ void writeToMem(u8 val, u32 fulladr) {
 void startDMA() {
 	for (u8 i = 0; i < 8; i++) {
 		if ((memory[0x420b] & (1 << i)) == (1 << i)) {
-			if (getPC() == 0x8265)
+			if (CPU_getPC() == 0x8265)
 				printf("hold");
 			u8 _IO = memory[0x4301 + (i * 0x10)];
 			u8 _v = memory[0x4300 + (i * 0x10)];

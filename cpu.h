@@ -255,9 +255,10 @@ struct Registers
 };
 
 
-u8 stepCPU();
+u8 CPU_step();
 void resetCPU();
 void togglePause();
-u16 getPC();
+u16 CPU_getPC();
+bool CPU_isStopped();
 
 #endif // !LIB_CPU

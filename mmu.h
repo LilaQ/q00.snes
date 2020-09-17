@@ -222,6 +222,7 @@ static const u16 VECTOR_EMU_RESET = 0xfffc;
 static const u16 VECTOR_EMU_IRQBRK = 0xfffe;
 
 //	base methods
+void reset(string filename);
 void reset();
 void loadROM(string filename);
 u8 readFromMem(u32 adr);

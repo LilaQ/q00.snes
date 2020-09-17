@@ -116,7 +116,7 @@ void handleWindowEvents(SDL_Event event) {
 					ZeroMemory(&ofn, sizeof(ofn));
 					ofn.lStructSize = sizeof(ofn);
 					ofn.hwndOwner = NULL;  // If you have a window to center over, put its HANDLE here
-					ofn.lpstrFilter = "SNES Roms\0*.sfc\0";
+					ofn.lpstrFilter = "SNES Roms (*.sfc, *.smc)\0""*.sfc;*.smc";
 					ofn.lpstrFile = f;
 					ofn.nMaxFile = MAX_PATH;
 					ofn.lpstrTitle = "[ rom selection ]";
