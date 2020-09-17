@@ -21,15 +21,22 @@ u16 VRAM[0x8000];	//	64 kbytes (16bit * 0x8000 [ 32768 ] )
 u16 CGRAM[0x100];	//	512 bytes (16bit * 0x100 [ 256 ] ) 
 u8 CGRAM_Lsb;
 bool CGRAM_Flipflop = false;
-const int FB_SIZE = 256 * 256 * 4 * 4;
+const int FB_SIZE = 256 * 256 * 4;
 SDL_Renderer *renderer;
 SDL_Window *window;
-SDL_Texture *TEXTURE[4];
-u8 BGS[4][FB_SIZE];
-u8 DEBUG[FB_SIZE];
-u8 framebuffer[FB_SIZE];
 u16 RENDER_X = 0, RENDER_Y = 0;
 bool VBlankNMIFlag = 0;
+
+//	textures
+SDL_Texture* TEXTURE[4];
+SDL_Texture* BACKDROP_TEX;
+
+//	buffers
+u16 BGS[4][FB_SIZE];
+u16 DEBUG[FB_SIZE];
+u16 BACKDROP[FB_SIZE];
+u16 framebuffer[FB_SIZE];
+
 
 //	BG Scrolling
 bool BGSCROLLX_Flipflop[4] = { false, false, false, false };
@@ -52,14 +59,16 @@ void PPU_init(string filename) {
 	SDL_SetWindowResizable(window, SDL_TRUE);
 
 	//	for fast rendering, create a texture
-	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
 
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	
@@ -80,14 +89,17 @@ void PPU_reset() {
 	memset(BGS[1], 0, sizeof(BGS[1]));
 	memset(BGS[2], 0, sizeof(BGS[2]));
 	memset(BGS[3], 0, sizeof(BGS[3]));
-	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	memset(BACKDROP, CGRAM[0x00], sizeof(BACKDROP));
+	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
+	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
 }
 
 /*
@@ -95,37 +107,44 @@ void PPU_reset() {
 */
 void PPU_drawFrame() {
 
-	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u8) * 4);
-	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u8) * 4);
-	SDL_UpdateTexture(TEXTURE[2], NULL, BGS[2], 256 * sizeof(u8) * 4);
-	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u8) * 4);
+	memset(BACKDROP, CGRAM[0x00] << 1 | 1, sizeof(BACKDROP));
 
-	SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
+	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u16));
+	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u16));
+	SDL_UpdateTexture(TEXTURE[2], NULL, BGS[2], 256 * sizeof(u16));
+	SDL_UpdateTexture(TEXTURE[3], NULL, BGS[3], 256 * sizeof(u16));
+	SDL_UpdateTexture(BACKDROP_TEX, NULL, BACKDROP, 256 * sizeof(u16));
+
+	SDL_RenderCopy(renderer, BACKDROP_TEX, NULL, NULL);
 	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
+	SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
 	SDL_RenderPresent(renderer);
 	
 }
 
-void writeToFB(u8 *BG, u16 x, u16 y, u16 width, u32 v) {
-	BG[y * 4 * width + x * 4] = v >> 24;
+void writeToFB(u16 *BG, u16 x, u16 y, u16 width, u16 v) {
+	/*BG[y * 4 * width + x * 4] = v >> 24;
 	BG[y * 4 * width + x * 4 + 1] = v >> 16 & 0xff;
 	BG[y * 4 * width + x * 4 + 2] = v >> 8 & 0xff;
-	BG[y * 4 * width + x * 4 + 3] = v & 0xff;
+	BG[y * 4 * width + x * 4 + 3] = v & 0xff;*/
+	BG[y * width + x] = v;
 }
 
-u32 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
+u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
 	u16 color = CGRAM[(id + palette * (bpp*bpp)) + palette_base];
 	if (!id)	//	all bits on zero results in using backdrop color
-		color = CGRAM[0x00];
-	const u8 r = (color & 0b11111) * 255 / 31;
+		//color = CGRAM[0x00];
+		return 0x00000000;
+	/*const u8 r = (color & 0b11111) * 255 / 31;
 	const u8 g = ((color >> 5) & 0b11111) * 255 / 31;
 	const u8 b = ((color >> 10) & 0b11111) * 255 / 31;
-	return (r << 24) | (g << 16) | (b << 8) | 0xff;
+	return (r << 24) | (g << 16) | (b << 8) | 0xff;*/
+	return color << 1 | 1;
 }
 
-void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
+void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -152,7 +171,7 @@ void renderBGat2BPP(u16 scrx, u16 scry, u8 *BG, u16 bg_base, u8 bg_size_w, u8 bg
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, bg_palette_base, 2));
 }
 
-void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
+void renderBGat4BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -184,7 +203,7 @@ void renderBGat4BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 0, 4));
 }
 
-void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
+void renderBGat8BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -230,7 +249,7 @@ void renderBGat8BPP(u16 scrx, u16 scry, u8* BG, u16 bg_base, u8 bg_size_w, u8 bg
 void PPU_render() {
 	const u16 texture_width = 256;
 	u16 bg_base;
-	u8 bg_size_w, bg_size_h, bg_palette_base;
+	u8 bg_size_w = 0, bg_size_h = 0, bg_palette_base = 0;
 	u16 tile_base[4] = {
 		(readFromMem(0x210b) & 0xff) * 0x1000,
 		(readFromMem(0x210b) >> 8) * 0x1000,
@@ -287,7 +306,7 @@ void PPU_step(u8 steps) {
 		}
 		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			PPU_drawFrame();
-			printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
+			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
 		
 	}
@@ -404,7 +423,7 @@ void debug_drawBG(u8 id) {
 	SDL_SetWindowSize(tWindows, tex_w * 2, tex_h * 2);
 
 	//	create texture
-	tTexture = SDL_CreateTexture(tRenderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, tex_w, tex_h);
+	tTexture = SDL_CreateTexture(tRenderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, tex_w, tex_h);
 
 	//	window decorations
 	char title[50];
@@ -412,7 +431,7 @@ void debug_drawBG(u8 id) {
 	SDL_SetWindowTitle(tWindows, title);
 
 	//	draw texture to renderer
-	SDL_UpdateTexture(tTexture, NULL, DEBUG, tex_w * sizeof(u8) * 4);
+	SDL_UpdateTexture(tTexture, NULL, DEBUG, tex_w * sizeof(u16));
 	SDL_RenderCopy(tRenderer, tTexture, NULL, NULL);
 	SDL_RenderPresent(tRenderer);
 

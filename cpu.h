@@ -54,10 +54,10 @@ struct Registers
 				u8 getByte() {
 					//	NOT emulation mode
 					if (!E) {
-						return (N << 7) | (V << 6) | (M << 5) | (X << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
+						return (N << 7) | (V << 6) | (M << 5) | (X << 4) | (D << 3) | (I << 2) | (Z << 1) | (u8)C;
 					}
 					//	emulation mode
-					return  (N << 7) | (V << 6) | (1 << 5) | (B << 4) | (D << 3) | (I << 2) | (Z << 1) | C;
+					return  (N << 7) | (V << 6) | (1 << 5) | (B << 4) | (D << 3) | (I << 2) | (Z << 1) | (u8)C;
 				}
 				bool getNegative() {
 					return N;

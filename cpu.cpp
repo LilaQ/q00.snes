@@ -1570,7 +1570,7 @@ u8 RTL(u8 cycles) {
 //		Block Move
 
 //	Block move next
-u16 MVN() {
+u8 MVN() {
 	u8 dst_bank = readFromMem(regs.PC + 1);
 	u8 src_bank = readFromMem(regs.PC + 2);
 	regs.setDataBankRegister(dst_bank);
@@ -1587,7 +1587,7 @@ u16 MVN() {
 }
 
 //	Block move prev
-u16 MVP() {
+u8 MVP() {
 	u8 dst_bank = readFromMem(regs.PC + 1);
 	u8 src_bank = readFromMem(regs.PC + 2);
 	regs.setDataBankRegister(dst_bank);
@@ -1731,7 +1731,6 @@ u8 STP() {
 	CPU_STOPPED = true;
 	return 3;
 }
-
 
 
 //		Addressing modes
