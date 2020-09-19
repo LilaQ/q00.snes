@@ -12,6 +12,8 @@ void resetController1() {
 	b1 = 0;
 	x1 = 0;
 	y_1 = 0;
+	shoulder_l1 = 0;
+	shoulder_r1 = 0;
 	select1 = 0;
 	start1 = 0;
 	up1 = 0;
@@ -25,6 +27,8 @@ void resetController2() {
 	b2 = 0;
 	x2 = 0;
 	y2 = 0;
+	shoulder_l1 = 0;
+	shoulder_r1 = 0;
 	select2 = 0;
 	start2 = 0;
 	up2 = 0;
@@ -43,6 +47,10 @@ void setController1(uint8_t *SDL_keys) {
 		x1 = 1;
 	if (SDL_keys[SDL_SCANCODE_I])
 		y_1 = 1;
+	if (SDL_keys[SDL_SCANCODE_O])
+		shoulder_l1 = 1;
+	if (SDL_keys[SDL_SCANCODE_P])
+		shoulder_r1 = 1;
 	if (SDL_keys[SDL_SCANCODE_S])
 		down1 = 1;
 	if (SDL_keys[SDL_SCANCODE_A])
@@ -67,6 +75,10 @@ void setController2(uint8_t* SDL_keys) {
 		x2 = 1;
 	if (SDL_keys[SDL_SCANCODE_I])
 		y2 = 1;
+	if (SDL_keys[SDL_SCANCODE_O])
+		shoulder_l2 = 1;
+	if (SDL_keys[SDL_SCANCODE_P])
+		shoulder_r2 = 1;
 	if (SDL_keys[SDL_SCANCODE_S])
 		down2 = 1;
 	if (SDL_keys[SDL_SCANCODE_A])

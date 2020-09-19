@@ -38,12 +38,15 @@ u16 DEBUG[FB_SIZE];
 u16 BACKDROP[FB_SIZE];
 u16 framebuffer[FB_SIZE];
 
-
 //	BG Scrolling
 bool BGSCROLLX_Flipflop[4] = { false, false, false, false };
 bool BGSCROLLY_Flipflop[4] = { false, false, false, false };
 u16 BGSCROLLX[4] = { 0, 0, 0, 0 };
 u16 BGSCROLLY[4] = { 0, 0, 0, 0 };
+
+//	Mosaic
+bool MOSAIC_ENABLED[4] = { false, false, false, false };
+u8 MOSAIC_SIZE = 0;
 
 void PPU_init(string filename) {
 
@@ -104,6 +107,20 @@ void PPU_reset() {
 	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
 }
 
+void processMosaic(u16 *BG) {
+	for (u16 x = 0; x < 256; x += MOSAIC_SIZE) {
+		for (u16 y = 0; y < 256; y += MOSAIC_SIZE) {
+			u16 pos = y * 256 + x;
+			u16 col = BG[pos];
+			for (u8 a = 0; a < MOSAIC_SIZE; a++) {
+				for (u8 b = 0; b < MOSAIC_SIZE; b++) {
+					BG[min(y + b, 255) * 256 + min(x + a, 255)] = col;
+				}
+			}
+		}
+	}
+}
+
 /*
 	DRAW FRAME
 */
@@ -112,6 +129,11 @@ void PPU_drawFrame() {
 	//	16-bit arrays can't be filled with memset, so manual way
 	for (auto i = 0; i < sizeof(BACKDROP); i++)
 		BACKDROP[i] = (CGRAM[0x00] << 1) | 1;
+
+	//	apply mosaic if set
+	for (u8 i = 0; i < 4; i++)
+		if (MOSAIC_ENABLED[i])
+			processMosaic(BGS[i]);
 
 	SDL_UpdateTexture(TEXTURE[0], NULL, BGS[0], 256 * sizeof(u16));
 	SDL_UpdateTexture(TEXTURE[1], NULL, BGS[1], 256 * sizeof(u16));
@@ -298,8 +320,8 @@ void PPU_step(u8 steps) {
 			PPU_render();
 		}
 		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
-			PPU_drawFrame();
 			INPUT_stepJoypadAutoread();
+			PPU_drawFrame();
 			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
 		
@@ -358,6 +380,14 @@ void PPU_writeBGScrollY(u8 bg_id, u8 val) {
 	}
 }
 
+void PPU_setMosaic(u8 val) {
+	MOSAIC_ENABLED[0] = val & 1;
+	MOSAIC_ENABLED[1] = (val >> 1) & 1;
+	MOSAIC_ENABLED[2] = (val >> 2) & 1;
+	MOSAIC_ENABLED[3] = (val >> 3) & 1;
+	MOSAIC_SIZE = (val >> 4) + 1;
+}
+
 //	reading the VBlank NMI Flag automatically aknowledges it
 bool PPU_getVBlankNMIFlag() {
 	bool res = VBlankNMIFlag;
@@ -391,7 +421,7 @@ void debug_drawBG(u8 id) {
 	};
 	u8 bg_mode = readFromMem(0x2105) & 0b111;
 	if (PPU_BG_MODES[bg_mode][id] != PPU_COLOR_DEPTH::CD_DISABLED) {
-		bg_palette_base = 0x20 * id;									//	The offset inside CGRAM
+		bg_palette_base = 0x20 * id;								//	The offset inside CGRAM
 		bg_base = ((readFromMem(0x2107 + id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
 		switch (readFromMem(0x2107 + id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
 		case 0b00: bg_size_w = 32; bg_size_h = 32; break;

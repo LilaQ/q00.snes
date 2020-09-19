@@ -198,18 +198,25 @@ u8 readFromMem(u32 fulladr) {
 				return PPU_readCGRAM(memory[0x2121]);
 				memory[0x2121]++;
 				break;
+
+			case 0x2140:			//	APU - Main communication registers
+			case 0x2141:
+			case 0x2142:
+			case 0x2143:
+				break;
+
 			case 0x4210:			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
 				//	TODO there is NMI interrupt enable at $4200 that needs to be included somewhere around the flag
 				//	TDOD test with WAI instruction like here : https://wiki.superfamicom.org/using-the-nmi-vblank#toc-1
-				if (NMI == 0x42) {
+				/*if (NMI == 0x42) {
 					NMI = 0xc2;
 					return NMI;
 				}
 				if (NMI == 0xc2) {
 					NMI = 0x42;
 					return NMI;
-				}
-				//return (PPU_getVBlankNMIFlag() << 7) | 0x02;
+				}*/
+				return (PPU_getVBlankNMIFlag() << 7) | 0x02;
 				break;
 			case 0x4211:			//	PPU Interrupts - H/V-Timer IRQ Flag (R) [Read/Ack]
 				return 0;
@@ -238,6 +245,11 @@ void writeToMem(u8 val, u32 fulladr) {
 	case 0x00:
 		switch (adr)
 		{
+
+		case 0x2106:				//	Set Mosaic
+			PPU_setMosaic(val);
+			printf("Writing %d to mosaic register\n", val);
+			break;
 
 		case 0x210d:				//	BG1 Horizontal Scroll
 			PPU_writeBGScrollX(0, val);
@@ -318,8 +330,14 @@ void writeToMem(u8 val, u32 fulladr) {
 		}
 		case 0x2122:			//	PPU - CGDATA - Palette CGRAM Data Write (W)
 			PPU_writeCGRAM(val, memory[0x2121]);
-			//memory[0x2121]++;
 			break;
+
+		case 0x2140:			//	APU - Main communication registers
+		case 0x2141:
+		case 0x2142:
+		case 0x2143:
+			break;
+
 		case 0x4200:			//	PPU Interrupts - Interrupt Enable and Joypad Requests (W)
 			break;
 		case 0x4207:			//	PPU Interrupts - H-Count Timer Setting - Low (W)
