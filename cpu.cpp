@@ -338,15 +338,15 @@ u8 PLY() {
 //	reset status bits (reset all bits set in the immediate value)
 u8 REP() {
 	u8 v = readFromMem(regs.PC+1);
-	u8 N = (regs.P.getNegative() & ~((v >> 7) & 1)) > 0;
-	u8 V = (regs.P.getOverflow() & ~((v >> 6) & 1)) > 0;
-	u8 M = (regs.P.getAccuMemSize() & ~((v >> 5) & 1)) > 0;
-	u8 X = (regs.P.getIndexSize() & ~((v >> 4) & 1)) > 0;
-	u8 B = (regs.P.getBreak() & ~((v >> 4) & 1)) > 0;
-	u8 D = (regs.P.getDecimal() & ~((v >> 3) & 1)) > 0;
-	u8 I = (regs.P.getIRQDisable() & ~((v >> 2) & 1)) > 0;
-	u8 Z = (regs.P.getZero() & ~((v >> 1) & 1)) > 0;
-	u8 C = (regs.P.getCarry() & ~(v & 1)) > 0;
+	bool N = ((u8)regs.P.getNegative() & ~((v >> 7) & 1)) > 0;
+	bool V = ((u8)regs.P.getOverflow() & ~((v >> 6) & 1)) > 0;
+	bool M = ((u8)regs.P.getAccuMemSize() & ~((v >> 5) & 1)) > 0;
+	bool X = ((u8)regs.P.getIndexSize() & ~((v >> 4) & 1)) > 0;
+	bool B = ((u8)regs.P.getBreak() & ~((v >> 4) & 1)) > 0;
+	bool D = ((u8)regs.P.getDecimal() & ~((v >> 3) & 1)) > 0;
+	bool I = ((u8)regs.P.getIRQDisable() & ~((v >> 2) & 1)) > 0;
+	bool Z = ((u8)regs.P.getZero() & ~((v >> 1) & 1)) > 0;
+	bool C = ((u8)regs.P.getCarry() & ~(v & 1)) > 0;
 
 	regs.P.setNegative(N);
 	regs.P.setOverflow(V);
@@ -724,7 +724,7 @@ u8 EOR(u32(*f)(), u8 cycles) {
 //	Decrement (accumulator)
 u8 DEC_A() {
 	if (regs.P.getAccuMemSize()) {
-		u8 val = regs.getAccumulator();
+		u8 val = (u8)regs.getAccumulator();
 		val--;
 		regs.setAccumulator(val);
 		regs.P.setNegative(val >> 7);
@@ -786,7 +786,7 @@ u8 DEY() {
 //	Increment (accumulator)
 u8 INC_A() {
 	if (regs.P.getAccuMemSize()) {
-		u8 val = regs.getAccumulator();
+		u8 val = (u8)regs.getAccumulator();
 		val++;
 		regs.setAccumulator(val);
 		regs.P.setNegative(val >> 7);
@@ -960,7 +960,7 @@ u8 ROL(u32(*f)(), u8 cycles) {
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val >> 15);
 		val = val + val + old_C;
-		writeToMem(val, adr);
+		writeToMem((u8)val, adr);
 		writeToMem(val >> 8, adr + 1);
 		regs.P.setZero(val == 0);
 		regs.P.setNegative(val >> 15);
@@ -971,7 +971,7 @@ u8 ROL(u32(*f)(), u8 cycles) {
 //	Rotate Left (Accumulator)
 u8 ROL_A(u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
-		u8 val = regs.getAccumulator();
+		u8 val = (u8)regs.getAccumulator();
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val >> 7);
 		val = val + val + old_C;
@@ -1009,7 +1009,7 @@ u8 ROR(u32(*f)(), u8 cycles) {
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val & 1);
 		val = (old_C << 15) | (val >> 1);
-		writeToMem(val, adr);
+		writeToMem((u8)val, adr);
 		writeToMem(val >> 8, adr + 1);
 		regs.P.setZero(val == 0);
 		regs.P.setNegative(val >> 15);
@@ -1020,7 +1020,7 @@ u8 ROR(u32(*f)(), u8 cycles) {
 //	Rotate Right (Accumulator)
 u8 ROR_A(u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
-		u8 val = regs.getAccumulator();
+		u8 val = (u8)regs.getAccumulator();
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val & 1);
 		val = (old_C << 7) | (val >> 1);
@@ -1361,7 +1361,7 @@ u8 LDY(u32(*f)(), u8 cycles) {
 //	Store accumulator to memory
 u8 STA(u32 (*f)(), u8 cycles) {
 	u32 adr = f();
-	writeToMem(regs.getAccumulator(), adr);
+	writeToMem((u8)regs.getAccumulator(), adr);
 	if (regs.P.isMReset())
 		writeToMem(regs.getAccumulator() >> 8, adr + 1);
 	regs.PC++;
@@ -1379,7 +1379,7 @@ u8 STZ(u32 (*f)(), u8 cycles) {
 //	Store X-Register to memory
 u8 STX(u32(*f)(), u8 cycles) {
 	u32 adr = f();
-	writeToMem(regs.getX(), adr);
+	writeToMem((u8)regs.getX(), adr);
 	if (regs.P.isXReset())
 		writeToMem(regs.getX() >> 8, adr + 1);
 	regs.PC++;
@@ -1388,7 +1388,7 @@ u8 STX(u32(*f)(), u8 cycles) {
 //	Store Y-Register to memory
 u8 STY(u32 (*f)(), u8 cycles) {
 	u32 adr = f();
-	writeToMem(regs.getY(), adr);
+	writeToMem((u8)regs.getY(), adr);
 	if(regs.P.isXReset())
 		writeToMem(regs.getY() >> 8, adr + 1);
 	regs.PC++;

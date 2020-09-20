@@ -37,14 +37,14 @@ struct Registers
 		struct Status
 		{
 			private:
-				bool N;			//	Negative
-				bool V;			//	Overflow
-				bool M;			//	Memory / Accumulator Select register size	-	0 = 16-bit, 1 = 8-bit	(only native mode)
-				bool X;			//	Index register Select size					-	0 = 16-bit, 1 = 8-bit	(only native mode)
-				bool D;			//	Decimal
-				bool I = true;	//	IRQ Disable
-				bool Z;			//	Zero
-				bool C;			//	Carry
+				bool N = false;			//	Negative
+				bool V = false;			//	Overflow
+				bool M = false;			//	Memory / Accumulator Select register size	-	0 = 16-bit, 1 = 8-bit	(only native mode)
+				bool X = false;			//	Index register Select size					-	0 = 16-bit, 1 = 8-bit	(only native mode)
+				bool D = false;			//	Decimal
+				bool I = true;			//	IRQ Disable
+				bool Z = false;			//	Zero
+				bool C = false;			//	Carry
 
 				//	side bits
 				bool B = true;	//	Break (emulation mode only)
@@ -143,16 +143,16 @@ struct Registers
 				}
 		};
 
-		u8 A_lo;	//	Accumulator - low-byte
-		u8 A_hi;	//	Accumulator - high-byte
-		u8 DBR;		//	Data Bank Register
-		u16 D;		//	Direct Page Register
-		u8 PB;		//	Program Bank Register
-		u8 X_lo;	//	index X - low byte
-		u8 X_hi;	//	index X - high byte
-		u8 Y_lo;	//	index Y - low byte
-		u8 Y_hi;	//	index Y - high byte
-		u16 SP;		//	Stack Pointer
+		u8 A_lo = 0;	//	Accumulator - low-byte
+		u8 A_hi = 0;	//	Accumulator - high-byte
+		u8 DBR = 0;		//	Data Bank Register
+		u16 D = 0;		//	Direct Page Register
+		u8 PB = 0;		//	Program Bank Register
+		u8 X_lo = 0;	//	index X - low byte
+		u8 X_hi = 0;	//	index X - high byte
+		u8 Y_lo = 0;	//	index Y - low byte
+		u8 Y_hi = 0;	//	index Y - high byte
+		u16 SP = 0;		//	Stack Pointer
 
 	public:
 

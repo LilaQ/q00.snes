@@ -181,7 +181,7 @@ void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u8 j = scrx % 8;
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
 	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
-	const u16 tile_address = tile_id * 8 + v_shift;					//	this doesn't have tile_base like 8bpp, fix?
+	const u16 tile_address = tile_id * 8 + v_shift;						//	this doesn't have tile_base like 8bpp, fix?
 	const u8 b_hi = VRAM[tile_address] >> 8;
 	const u8 b_lo = VRAM[tile_address] & 0xff;
 	const u8 v = ((b_lo >> h_shift) & 1) + (2 * ((b_hi >> h_shift) & 1));
@@ -268,10 +268,10 @@ void PPU_render() {
 	u16 bg_base;
 	u8 bg_size_w = 0, bg_size_h = 0, bg_palette_base = 0;
 	u16 tile_base[4] = {
-		(readFromMem(0x210b) & 0xff) * 0x1000,
-		(readFromMem(0x210b) >> 8) * 0x1000,
-		(readFromMem(0x210c) & 0xff) * 0x1000,
-		(readFromMem(0x210c) >> 8) * 0x1000,
+		(u16)((readFromMem(0x210b) & 0xf) * 0x1000),
+		(u16)((readFromMem(0x210b) >> 4) * 0x1000),
+		(u16)((readFromMem(0x210c) & 0xf) * 0x1000),
+		(u16)((readFromMem(0x210c) >> 4) * 0x1000)
 	};
 
 	//	iterate all BGs
@@ -416,10 +416,10 @@ void debug_drawBG(u8 id) {
 	u16 bg_base;
 	u8 bg_size_w, bg_size_h, bg_palette_base;
 	u16 tile_base[4] = {
-		(readFromMem(0x210b) & 0xff) * 0x1000,
-		(readFromMem(0x210b) >> 8) * 0x1000,
-		(readFromMem(0x210c) & 0xff) * 0x1000,
-		(readFromMem(0x210c) >> 8) * 0x1000,
+		(u16)((readFromMem(0x210b) & 0xf) * 0x1000),
+		(u16)((readFromMem(0x210b) >> 4) * 0x1000),
+		(u16)((readFromMem(0x210c) & 0xf) * 0x1000),
+		(u16)((readFromMem(0x210c) >> 4) * 0x1000)
 	};
 	u8 bg_mode = readFromMem(0x2105) & 0b111;
 	if (PPU_BG_MODES[bg_mode][id] != PPU_COLOR_DEPTH::CD_DISABLED) {
