@@ -94,7 +94,7 @@ void PPU_reset() {
 	memset(BGS[1], 0, sizeof(BGS[1]));
 	memset(BGS[2], 0, sizeof(BGS[2]));
 	memset(BGS[3], 0, sizeof(BGS[3]));
-	memset(BACKDROP, CGRAM[0x00], sizeof(BACKDROP));
+	memset(BACKDROP, 0, sizeof(BACKDROP));
 	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
@@ -105,6 +105,8 @@ void PPU_reset() {
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
+
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 }
 
 void processMosaic(u16 *BG) {
@@ -127,7 +129,7 @@ void processMosaic(u16 *BG) {
 void PPU_drawFrame() {
 
 	//	16-bit arrays can't be filled with memset, so manual way
-	for (auto i = 0; i < sizeof(BACKDROP); i++)
+	for (auto i = 0; i < FB_SIZE; i++)
 		BACKDROP[i] = (CGRAM[0x00] << 1) | 1;
 
 	//	apply mosaic if set
@@ -155,7 +157,7 @@ void writeToFB(u16 *BG, u16 x, u16 y, u16 width, u16 v) {
 }
 
 u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
-	if (!id) return 0x00000000;	//	id 0 = transparency
+	if (id == 0) return 0x00000000;	//	id 0 = transparency
 	return CGRAM[(id + palette * (bpp * bpp)) + palette_base] << 1 | 1;
 }
 
