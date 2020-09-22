@@ -252,9 +252,12 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 		switch (adr)
 		{
 
+		case 0x2100:				//	Forced Blanking	/ Master Brightness
+			PPU_writeINIDISP(val);
+			break;
+
 		case 0x2106:				//	Set Mosaic
 			PPU_setMosaic(val);
-			printf("Writing %d to mosaic register\n", val);
 			break;
 
 		case 0x210d:				//	BG1 Horizontal Scroll
@@ -499,13 +502,16 @@ void BUS_startHDMA() {
 				HDMAS[dma_id].repeat = memory[HDMAS[dma_id].address] >> 7;
 				HDMAS[dma_id].line_counter = memory[HDMAS[dma_id].address] & 0x7f;
 				HDMAS[dma_id].address++;
-				BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].address, HDMAS[dma_id].IO, 100);
+				if (HDMAS[dma_id].addressing_mode) {		//	0 - Direct, 1 - Indirect
+					HDMAS[dma_id].indirect_address = (memory[HDMAS[dma_id].address + 1] << 8) | memory[HDMAS[dma_id].address];
+					HDMAS[dma_id].address += 2;
+					BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].indirect_address, HDMAS[dma_id].IO, 100);
+				}
+				else {
+					BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].address, HDMAS[dma_id].IO, 100);
+				}
 				if (!memory[HDMAS[dma_id].address]) {
 					HDMAS[dma_id].terminated = true;
-				}
-
-				//	TODO - Indirect
-				if (HDMAS[dma_id].addressing_mode) {		//	0 - Direct, 1 - Indirect
 				}
 			}
 		}
@@ -526,9 +532,16 @@ void BUS_resetHDMA() {
 			HDMAS[dma_id].address = HDMAS[dma_id].aaddress;
 			HDMAS[dma_id].repeat = memory[HDMAS[dma_id].address] >> 7;
 			HDMAS[dma_id].line_counter = memory[HDMAS[dma_id].address] & 0x7f;
+			//	initial transfer
 			HDMAS[dma_id].address++;
-			BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].address, HDMAS[dma_id].IO, 100);	//	initial transfer
-			//	TODO Load Indirect Address if necessary - but how and where
+			if (HDMAS[dma_id].addressing_mode) {		//	0 - Direct, 1 - Indirect
+				HDMAS[dma_id].indirect_address = (memory[HDMAS[dma_id].address + 1] << 8) | memory[HDMAS[dma_id].address];
+				HDMAS[dma_id].address += 2;
+				BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].indirect_address, HDMAS[dma_id].IO, 100);
+			}
+			else {
+				BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].address, HDMAS[dma_id].IO, 100);
+			}
 		}
 	}
 }

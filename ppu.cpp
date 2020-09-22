@@ -366,6 +366,7 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 		CGRAM_Flipflop = false;
 		BUS_writeToMem(BUS_readFromMem(0x2121) + 1, 0x2121);
 	}
+	//printf("Write CGRAM: %x\n", val);
 	
 }
 
@@ -404,6 +405,11 @@ void PPU_setMosaic(u8 val) {
 	MOSAIC_ENABLED[2] = (val >> 2) & 1;
 	MOSAIC_ENABLED[3] = (val >> 3) & 1;
 	MOSAIC_SIZE = (val >> 4) + 1;
+}
+
+void PPU_writeINIDISP(u8 val) {
+	//	TODO
+	//	Force Blanking & Brightness
 }
 
 //	reading the VBlank NMI Flag automatically aknowledges it
