@@ -1,5 +1,5 @@
 #include "SDL2/include/SDL.h"
-#include "mmu.h"
+#include "bus.h"
 
 bool a1, b1, x1, y_1, select1, start1, up1, down1, left1, right1, shoulder_l1, shoulder_r1;
 bool a2, b2, x2, y2, select2, start2, up2, down2, left2, right2, shoulder_l2, shoulder_r2;
@@ -122,10 +122,10 @@ void INPUT_stepJoypadAutoread() {
 		writeToMem(v, 0x4212);
 	}*/
 	//	for complexitys sake, we immediately read in the 16 bits to the registers, and skip the serial transmission
-	writeToMem(readController1() & 0xff, 0x4218);
-	writeToMem(readController1() >> 8, 0x4219);
-	writeToMem(readController2() & 0xff, 0x421a);
-	writeToMem(readController2() >> 8, 0x421b);
+	BUS_writeToMem(readController1() & 0xff, 0x4218);
+	BUS_writeToMem(readController1() >> 8, 0x4219);
+	BUS_writeToMem(readController2() & 0xff, 0x421a);
+	BUS_writeToMem(readController2() >> 8, 0x421b);
 	//	TODO - player 3 and 4
 	/*writeToMem(readController3() & 0xff, 0x421c);
 	writeToMem(readController3() >> 8, 0x421d);

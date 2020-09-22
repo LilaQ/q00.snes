@@ -2,7 +2,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
-#include "mmu.h"
+#include "bus.h"
 #include "cpu.h"
 #include "ppu.h"
 #include "wmu.h"
@@ -66,7 +66,7 @@ int main()
 {
 
 	//	load cartridge
-	loadROM(filename);
+	BUS_loadROM(filename);
 
 	PPU_init(filename);
 	initAPU();

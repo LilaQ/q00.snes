@@ -12,6 +12,30 @@ typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
 
+
+struct DMA {
+
+public:
+	bool enabled = false;
+	bool do_transfer = false;
+	bool repeat = false;
+	bool terminated = false;
+	u8 directon = 0;
+	u8 addressing_mode = 0;
+	u8 dma_mode = 0;
+	u8 IO = 0;
+	u32 indirect_address = 0;
+	u8 line_counter = 0;
+	u32 aaddress = 0;
+	u32 address = 0;
+
+	DMA() {};
+	DMA(bool e) {
+		enabled = e;
+	}
+};
+
+
 struct Cartridge {
 
 private:
@@ -222,12 +246,13 @@ static const u16 VECTOR_EMU_RESET = 0xfffc;
 static const u16 VECTOR_EMU_IRQBRK = 0xfffe;
 
 //	base methods
-void reset(string filename);
-void reset();
-void loadROM(string filename);
-u8 readFromMem(u32 adr);
-void writeToMem(u8 val, u32 adr);
-void startDMA();
-void startHDMA();
+void BUS_reset(string filename);
+void BUS_reset();
+void BUS_loadROM(string filename);
+u8 BUS_readFromMem(u32 adr);
+void BUS_writeToMem(u8 val, u32 adr);
+void BUS_startDMA();
+void BUS_startHDMA();
+void BUS_resetHDMA();
 
 #endif // !LIB_MMU

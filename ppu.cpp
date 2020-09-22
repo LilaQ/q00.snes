@@ -4,7 +4,7 @@
 #include <string>
 #include <algorithm>
 #include "SDL2/include/SDL.h"
-#include "mmu.h"
+#include "bus.h"
 #include "ppu.h"
 #include "wmu.h"
 #include "cpu.h"
@@ -33,9 +33,9 @@ SDL_Texture* TEXTURE[4];
 SDL_Texture* BACKDROP_TEX;
 
 //	buffers
-u16 BGS[4][FB_SIZE];
-u16 DEBUG[FB_SIZE];
+u16 BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4, BACKDROP
 u16 BACKDROP[FB_SIZE];
+u16 DEBUG[FB_SIZE];
 u16 framebuffer[FB_SIZE];
 
 //	BG Scrolling
@@ -73,13 +73,7 @@ void PPU_init(string filename) {
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
-
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	
-
-	/*
-		INIT WINDOW
-	*/
 	initWindow(window, filename);
 
 }
@@ -89,6 +83,26 @@ void PPU_setTitle(string filename) {
 }
 
 void PPU_reset() {
+	BGSCROLLX_Flipflop[0] = false;
+	BGSCROLLX_Flipflop[1] = false;
+	BGSCROLLX_Flipflop[2] = false;
+	BGSCROLLX_Flipflop[3] = false;
+	BGSCROLLY_Flipflop[0] = false;
+	BGSCROLLY_Flipflop[1] = false;
+	BGSCROLLY_Flipflop[2] = false;
+	BGSCROLLY_Flipflop[3] = false;
+	BGSCROLLX[0] = 0;
+	BGSCROLLX[1] = 0;
+	BGSCROLLX[2] = 0;
+	BGSCROLLX[3] = 0;
+	BGSCROLLY[0] = 0;
+	BGSCROLLY[1] = 0;
+	BGSCROLLY[2] = 0;
+	BGSCROLLY[3] = 0;
+	RENDER_X = 0, RENDER_Y = 0;
+	VBlankNMIFlag = 0;
+	CGRAM_Lsb = 0;
+	CGRAM_Flipflop = false;
 	memset(framebuffer, 0, sizeof(framebuffer));
 	memset(BGS[0], 0, sizeof(BGS[0]));
 	memset(BGS[1], 0, sizeof(BGS[1]));
@@ -105,7 +119,6 @@ void PPU_reset() {
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
-
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 }
 
@@ -123,14 +136,7 @@ void processMosaic(u16 *BG) {
 	}
 }
 
-/*
-	DRAW FRAME
-*/
 void PPU_drawFrame() {
-
-	//	16-bit arrays can't be filled with memset, so manual way
-	for (auto i = 0; i < FB_SIZE; i++)
-		BACKDROP[i] = (CGRAM[0x00] << 1) | 1;
 
 	//	apply mosaic if set
 	for (u8 i = 0; i < 4; i++)
@@ -160,6 +166,10 @@ u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
 	if (id == 0) return 0x00000000;	//	id 0 = transparency
 	return CGRAM[(id + palette * (bpp * bpp)) + palette_base] << 1 | 1;
 }
+
+void renderBackdrop(u16 srcx, u16 srcy, u16* BG) {
+	writeToFB(BG, srcx, srcy, 256, (CGRAM[0x00] << 1 | 1));
+};
 
 void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
@@ -268,21 +278,21 @@ void PPU_render() {
 	u16 bg_base;
 	u8 bg_size_w = 0, bg_size_h = 0, bg_palette_base = 0;
 	u16 tile_base[4] = {
-		(u16)((readFromMem(0x210b) & 0xf) * 0x1000),
-		(u16)((readFromMem(0x210b) >> 4) * 0x1000),
-		(u16)((readFromMem(0x210c) & 0xf) * 0x1000),
-		(u16)((readFromMem(0x210c) >> 4) * 0x1000)
+		(u16)((BUS_readFromMem(0x210b) & 0xf) * 0x1000),
+		(u16)((BUS_readFromMem(0x210b) >> 4) * 0x1000),
+		(u16)((BUS_readFromMem(0x210c) & 0xf) * 0x1000),
+		(u16)((BUS_readFromMem(0x210c) >> 4) * 0x1000)
 	};
 
 	//	iterate all BGs
 	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
-		if (((readFromMem(0x212c) >> bg_id) & 1) > 0) {							//	Check if the BG (1/2/3/4) is enabled
-			u8 bg_mode = readFromMem(0x2105) & 0b111;
+		if (((BUS_readFromMem(0x212c) >> bg_id) & 1) > 0) {							//	Check if the BG (1/2/3/4) is enabled
+			u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
 			if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 				bg_palette_base = 0x20 * bg_id;									//	The offset inside CGRAM
-				bg_base = ((readFromMem(0x2107 + bg_id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
+				bg_base = ((BUS_readFromMem(0x2107 + bg_id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
 
-				switch (readFromMem(0x2107 + bg_id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
+				switch (BUS_readFromMem(0x2107 + bg_id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
 				case 0b00: bg_size_w = 32; bg_size_h = 32; break;
 				case 0b01: bg_size_w = 64; bg_size_h = 32; break;
 				case 0b10: bg_size_w = 32; bg_size_h = 64; break;
@@ -297,6 +307,7 @@ void PPU_render() {
 			}
 		}
 	}
+	renderBackdrop(RENDER_X, RENDER_Y, BACKDROP);
 }
 
 void PPU_step(u8 steps) {
@@ -305,7 +316,7 @@ void PPU_step(u8 steps) {
 
 		RENDER_X++;
 		if (RENDER_X == 256) {					//	H-Blank starts
-
+			BUS_startHDMA();
 		}		
 		else if (RENDER_X == 341) {				//	PAL Line, usually takes up 341 dot cycles (unless interlace=on, field=1, line=311 it will be one additional dot cycle)
 			RENDER_X = 0;
@@ -316,12 +327,13 @@ void PPU_step(u8 steps) {
 			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
 				RENDER_Y = 0;
 				VBlankNMIFlag = false;
+				BUS_resetHDMA();				//	A new frame will begin, we can safely reset our HDMAs now
 			}
 		}
 		if (RENDER_X < 256 && RENDER_Y < 241) {	//	Only render current pixel(s) if we're not in any blanking period
 			PPU_render();
 		}
-		if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
+		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			INPUT_stepJoypadAutoread();
 			PPU_drawFrame();
 			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
@@ -352,8 +364,9 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 	else {
 		CGRAM[adr] = (val << 8) | CGRAM_Lsb;
 		CGRAM_Flipflop = false;
-		writeToMem(readFromMem(0x2121) + 1, 0x2121);
+		BUS_writeToMem(BUS_readFromMem(0x2121) + 1, 0x2121);
 	}
+	
 }
 
 u16 PPU_readCGRAM(u8 adr) {
@@ -364,10 +377,12 @@ void PPU_writeBGScrollX(u8 bg_id, u8 val) {
 	if (!BGSCROLLX_Flipflop[bg_id]) {
 		BGSCROLLX[bg_id] = val;
 		BGSCROLLX_Flipflop[bg_id] = true;
+		//printf("Low %x Write BG ScrollX: %x\n", val, BGSCROLLX[bg_id]);
 	}
 	else {
-		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0xff) | ((val & 0x3f) << 8);
+		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0xff) | ((val & 0b11) << 8);
 		BGSCROLLX_Flipflop[bg_id] = false;
+		//printf("High %x Write BG ScrollX: %x\n", val, BGSCROLLX[bg_id]);
 	}
 }
 
@@ -377,8 +392,9 @@ void PPU_writeBGScrollY(u8 bg_id, u8 val) {
 		BGSCROLLY_Flipflop[bg_id] = true;
 	}
 	else {
-		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0xff) | ((val & 0x3f) << 8);
+		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0xff) | ((val & 0b11) << 8);
 		BGSCROLLY_Flipflop[bg_id] = false;
+		//printf("Write BG ScrollY: %x\n", BGSCROLLY[bg_id]);
 	}
 }
 
@@ -407,8 +423,8 @@ void debug_drawBG(u8 id) {
 	SDL_Window* tWindows;
 	SDL_Renderer* tRenderer;
 	SDL_Texture* tTexture;
-	const u8 tiles_x = 32 + (readFromMem(0x2107 + id) & 1) * 32;
-	const u8 tiles_y = 32 + ((readFromMem(0x2107 + id) >> 1) & 1) * 32;
+	const u8 tiles_x = 32 + (BUS_readFromMem(0x2107 + id) & 1) * 32;
+	const u8 tiles_y = 32 + ((BUS_readFromMem(0x2107 + id) >> 1) & 1) * 32;
 	u16 tex_w = (8 * tiles_x);
 	u16 tex_h = (8 * tiles_y);
 
@@ -416,16 +432,16 @@ void debug_drawBG(u8 id) {
 	u16 bg_base;
 	u8 bg_size_w, bg_size_h, bg_palette_base;
 	u16 tile_base[4] = {
-		(u16)((readFromMem(0x210b) & 0xf) * 0x1000),
-		(u16)((readFromMem(0x210b) >> 4) * 0x1000),
-		(u16)((readFromMem(0x210c) & 0xf) * 0x1000),
-		(u16)((readFromMem(0x210c) >> 4) * 0x1000)
+		(u16)((BUS_readFromMem(0x210b) & 0xf) * 0x1000),
+		(u16)((BUS_readFromMem(0x210b) >> 4) * 0x1000),
+		(u16)((BUS_readFromMem(0x210c) & 0xf) * 0x1000),
+		(u16)((BUS_readFromMem(0x210c) >> 4) * 0x1000)
 	};
-	u8 bg_mode = readFromMem(0x2105) & 0b111;
+	u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
 	if (PPU_BG_MODES[bg_mode][id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 		bg_palette_base = 0x20 * id;								//	The offset inside CGRAM
-		bg_base = ((readFromMem(0x2107 + id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
-		switch (readFromMem(0x2107 + id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
+		bg_base = ((BUS_readFromMem(0x2107 + id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
+		switch (BUS_readFromMem(0x2107 + id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
 		case 0b00: bg_size_w = 32; bg_size_h = 32; break;
 		case 0b01: bg_size_w = 64; bg_size_h = 32; break;
 		case 0b10: bg_size_w = 32; bg_size_h = 64; break;

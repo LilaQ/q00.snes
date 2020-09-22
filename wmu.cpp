@@ -11,7 +11,7 @@
 #include "commctrl.h"
 #include "ppu.h"
 #include "cpu.h"
-#include "mmu.h"
+#include "bus.h"
 #include "input.h"
 #include "commctrl.h"
 #include "wmu.h"
@@ -76,7 +76,7 @@ void handleWindowEvents(SDL_Event event) {
 				}
 				//	Reset
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 7) {
-					reset();
+					BUS_reset();
 				}
 
 				//		DEBUG
@@ -123,7 +123,7 @@ void handleWindowEvents(SDL_Event event) {
 					ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
 
 					if (GetOpenFileNameA(&ofn)) {
-						loadROM(f);
+						BUS_loadROM(f);
 					}
 				}
 				//	pause / unpause

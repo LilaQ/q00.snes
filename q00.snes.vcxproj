@@ -23,7 +23,7 @@
     <ClCompile Include="cpu.cpp" />
     <ClCompile Include="input.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="mmu.cpp" />
+    <ClCompile Include="bus.cpp" />
     <ClCompile Include="ppu.cpp" />
     <ClCompile Include="wmu.cpp" />
   </ItemGroup>
@@ -32,7 +32,7 @@
     <ClInclude Include="cpu.h" />
     <ClInclude Include="input.h" />
     <ClInclude Include="main.h" />
-    <ClInclude Include="mmu.h" />
+    <ClInclude Include="bus.h" />
     <ClInclude Include="ppu.h" />
     <ClInclude Include="wmu.h" />
   </ItemGroup>

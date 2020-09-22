@@ -7,7 +7,7 @@
 #include <fstream>
 #include <iterator>
 #include "cpu.h"
-#include "mmu.h"
+#include "bus.h"
 #include "ppu.h"
 #include "apu.h"
 #include "input.h"
@@ -22,12 +22,14 @@ Cartridge cartridge;
 vector<u8> memory(0xffffff);
 vector<u8> cartridge_memory;
 
-void reset(string filename) {
+DMA HDMAS[8];
+
+void BUS_reset(string filename) {
 	PPU_setTitle(filename);
-	reset();
+	BUS_reset();
 }
 
-void reset() {
+void BUS_reset() {
 	// experimental - wipe first 32k of memory, but only if CPU is not halted by STP instruction
 	if (!CPU_isStopped()) {
 		for (auto i = 0; i < 0x8000; i++)
@@ -65,7 +67,7 @@ std::vector<u8> readFile(const char* filename)
 }
 
 //	copy cartridge to memory
-void loadROM(string filename) {
+void BUS_loadROM(string filename) {
 
 	//	load cartridge to memory
 	cartridge_memory = readFile(filename.c_str());
@@ -137,14 +139,18 @@ void loadROM(string filename) {
 	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
 	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
 
-	reset(filename);
+	BUS_reset(filename);
 }
 
 u16 NMI = 0xc2;
 
-u8 readFromMem(u32 fulladr) {
+u8 BUS_readFromMem(u32 fulladr) {
 	u8 bank_nr = fulladr >> 16;
 	u16 adr = fulladr & 0xffff;
+
+	if (adr >= 0x4300 && adr <= 0x430A)
+		printf("Read From %x\n", adr);
+
 	switch (bank_nr)
 	{
 		case 0x00:
@@ -238,7 +244,7 @@ u8 readFromMem(u32 fulladr) {
 	}
 }
 
-void writeToMem(u8 val, u32 fulladr) {
+void BUS_writeToMem(u8 val, u32 fulladr) {
 	u8 bank_nr = fulladr >> 16;
 	u16 adr = fulladr & 0xffff;
  	switch (bank_nr) {
@@ -351,11 +357,12 @@ void writeToMem(u8 val, u32 fulladr) {
 
 		case 0x420b:			//	DMA - MDMAEN - Select general purpose DMA Channel(s) and start Transfer (W)
 			if (val > 0)
-				startDMA();
+				BUS_startDMA();
 			break;
 		case 0x420c:			//	DMA - HDMAEN - Select H-Blank DMA (HDMA) Channel(s) and start Transfer (W)
-			if (val > 0)
-				startHDMA();
+			for (u8 i = 0; i < 8; i++) {
+				HDMAS[i] = DMA((val >> i) & 1);
+			}
 			break;
 
 		default:
@@ -368,143 +375,160 @@ void writeToMem(u8 val, u32 fulladr) {
 	}
 }
 
-void startDMA() {
-	for (u8 i = 0; i < 8; i++) {
-		if ((memory[0x420b] & (1 << i)) == (1 << i)) {
-			if (CPU_getPC() == 0x8265)
-				printf("hold");
-			u8 _IO = memory[0x4301 + (i * 0x10)];
-			u8 _v = memory[0x4300 + (i * 0x10)];
-			u8 dma_dir = _v >> 7;				//	0 - write to IO, 1 - read from IO
-			u8 dma_step = (_v >> 3) & 0b11;		//	0 - increment, 2 - decrement, 1/3 = none
-			u8 dma_mode = (_v & 0b111);
-			u32 target_adr = (memory[0x4304 + (i * 0x10)] << 16) | (memory[0x4303 + (i * 0x10)] << 8) | memory[0x4302 + (i * 0x10)];
-			//printf("Starting DMA %d - PC is %x - target_adr %x - VRAM Adr %x - size %x\n", i, getPC(), target_adr, ((memory[0x2117] << 8) | memory[0x2116]), ((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]));
-			//	count bytes
-			u16 c = (memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)];
-			switch (dma_mode) {
-			case 0: {				//	transfer 1 byte (e.g. WRAM)
-				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
-					if (!dma_dir)
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-					else
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-					c--;
-					memory[0x4306 + (i * 0x10)] = c >> 8;
-					memory[0x4305 + (i * 0x10)] = c & 0xff;
-					target_adr += (dma_step == 0) ? 1 : ((dma_step == 2) ? -1 : 0);
-				}
-				break;
-			}
-			case 1:					//	transfer 2 bytes (xx, xx + 1) (e.g. VRAM)
-				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						if (!--c) return;
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 1);
-						if (!--c) return;
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 1);
-						if (!--c) return;
-					}
-					memory[0x4306 + (i * 0x10)] = c >> 8;
-					memory[0x4305 + (i * 0x10)] = c & 0xff;
-					target_adr += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
-				}
-				break;
-			case 2:					//	transfer 2 bytes (xx, xx) (e.g. OAM / CGRAM)
-				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						if (!--c) return;
-						writeToMem(memory[target_adr], 0x2100 + _IO + 1);
-						if (!--c) return;
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO), target_adr + 1);
-						if (!--c) return;
-					}
-					memory[0x4306 + (i * 0x10)] = c >> 8;
-					memory[0x4305 + (i * 0x10)] = c & 0xff;
-					target_adr += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
-				}
-				break;
-			case 3:					//	transfer 4 bytes (xx, xx, xx + 1, xx + 1) (e.g. BGnxOFX, M7x)
-				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						if (!--c) return;
-						writeToMem(memory[target_adr], 0x2100 + _IO + 1);
-						if (!--c) return;
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 2);
-						if (!--c) return;
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 3);
-						if (!--c) return;
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO), target_adr + 1);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 2);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 2);
-						if (!--c) return;
-					}
-					memory[0x4306 + (i * 0x10)] = c >> 8;
-					memory[0x4305 + (i * 0x10)] = c & 0xff;
-					target_adr += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
-				}
-				break;
-			case 4:					//	transfer 4 bytes (xx, xx + 1, xx + 2, xx + 3) (e.g. BGnSC, Window, APU...)
-				while (((memory[0x4306 + (i * 0x10)] << 8) | memory[0x4305 + (i * 0x10)]) > 0) {		//	read bytes count
-					if (!dma_dir) {
-						writeToMem(memory[target_adr], 0x2100 + _IO);
-						if (!--c) return;
-						writeToMem(memory[target_adr + 1], 0x2100 + _IO + 1);
-						if (!--c) return;
-						writeToMem(memory[target_adr + 2], 0x2100 + _IO + 2);
-						if (!--c) return;
-						writeToMem(memory[target_adr + 3], 0x2100 + _IO + 3);
-						if (!--c) return;
-					}
-					else {
-						writeToMem(readFromMem(0x2100 + _IO), target_adr);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO + 1), target_adr + 1);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO + 2), target_adr + 2);
-						if (!--c) return;
-						writeToMem(readFromMem(0x2100 + _IO + 3), target_adr + 2);
-						if (!--c) return;
-					}
-					memory[0x4306 + (i * 0x10)] = c >> 8;
-					memory[0x4305 + (i * 0x10)] = c & 0xff;
-					target_adr += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
-				}
-				break;
-			case 5:					//	transfer 4 bytes (xx, xx + 1, xx, xx + 1) - RESERVED
-				break;
-			case 6:					//	same as mode 2 - RESERVED
-				break;
-			case 7:					//	same as mode 3 - RESERVED
-				break;
-			default:
-				break;
-			}
+u16 BUS_DMAtransfer(u8 dma_id, u8 dma_mode, u8 dma_dir, u8 dma_step, u32 &cpu_address, u8 io_address, u16 bytes_left) {
+	switch (dma_mode) {
+	case 0: {						//	transfer 1 byte (e.g. WRAM)
+		if (!dma_dir)
+			BUS_writeToMem(memory[cpu_address], 0x2100 + io_address);
+		else
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address), cpu_address);
+		if (!--bytes_left) return 0;
+		cpu_address += (dma_step == 0) ? 1 : ((dma_step == 2) ? -1 : 0);
+		break;
+	}
+	case 1:							//	transfer 2 bytes (xx, xx + 1) (e.g. VRAM)
+		if (!dma_dir) {
+			BUS_writeToMem(memory[cpu_address], 0x2100 + io_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 1], 0x2100 + io_address + 1);
+			if (!--bytes_left) return 0;
+		}
+		else {
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address), cpu_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 1), cpu_address + 1);
+			if (!--bytes_left) return 0;
+		}
+		cpu_address += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
+		break;
+	case 2:							//	transfer 2 bytes (xx, xx) (e.g. OAM / CGRAM)
+		if (!dma_dir) {
+			BUS_writeToMem(memory[cpu_address], 0x2100 + io_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 1], 0x2100 + io_address);
+			if (!--bytes_left) return 0;
+		}
+		else {
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address), cpu_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 1), cpu_address);
+			if (!--bytes_left) return 0;
+		}
+		cpu_address += (dma_step == 0) ? 2 : ((dma_step == 2) ? -2 : 0);
+		break;
+	case 3:							//	transfer 4 bytes (xx, xx, xx + 1, xx + 1) (e.g. BGnxOFX, M7x)
+		if (!dma_dir) {
+			BUS_writeToMem(memory[cpu_address], 0x2100 + io_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 1], 0x2100 + io_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 2], 0x2100 + io_address + 1);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 3], 0x2100 + io_address + 1);
+			if (!--bytes_left) return 0;
+		}
+		else {
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address), cpu_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 1), cpu_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 2), cpu_address + 1);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 3), cpu_address + 1);
+			if (!--bytes_left) return 0;
+		}
+		cpu_address += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
+		break;
+	case 4:							//	transfer 4 bytes (xx, xx + 1, xx + 2, xx + 3) (e.g. BGnSC, Window, APU...)
+		if (!dma_dir) {
+			BUS_writeToMem(memory[cpu_address], 0x2100 + io_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 1], 0x2100 + io_address + 1);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 2], 0x2100 + io_address + 2);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(memory[cpu_address + 3], 0x2100 + io_address + 3);
+			if (!--bytes_left) return 0;
+		}
+		else {
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address), cpu_address);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 1), cpu_address + 1);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 2), cpu_address + 2);
+			if (!--bytes_left) return 0;
+			BUS_writeToMem(BUS_readFromMem(0x2100 + io_address + 3), cpu_address + 2);
+			if (!--bytes_left) return 0;
+		}
+		cpu_address += (dma_step == 0) ? 4 : ((dma_step == 2) ? -4 : 0);
+		break;
+	case 5:					//	transfer 4 bytes (xx, xx + 1, xx, xx + 1) - RESERVED
+		break;
+	case 6:					//	same as mode 2 - RESERVED
+		break;
+	case 7:					//	same as mode 3 - RESERVED
+		break;
+	default:
+		break;
+	}
+	return bytes_left;
+}
+
+void BUS_startDMA() {
+	for (u8 dma_id = 0; dma_id < 8; dma_id++) {
+		if ((memory[0x420b] & (1 << dma_id)) == (1 << dma_id)) {
+			u8 io_address = memory[0x4301 + (dma_id * 0x10)];
+			u8 val = memory[0x4300 + (dma_id * 0x10)];
+			u8 dma_dir = val >> 7;					//	0 - write to IO, 1 - read from IO
+			u8 dma_step = (val >> 3) & 0b11;		//	0 - increment, 2 - decrement, 1/3 = none
+			u8 dma_mode = (val & 0b111);
+			u32 cpu_address = (memory[0x4304 + (dma_id * 0x10)] << 16) | (memory[0x4303 + (dma_id * 0x10)] << 8) | memory[0x4302 + (dma_id * 0x10)];
+			u16 bytes = (memory[0x4306 + (dma_id * 0x10)] << 8) | memory[0x4305 + (dma_id * 0x10)];
+			while (bytes = BUS_DMAtransfer(dma_id, dma_mode, dma_dir, dma_step, cpu_address, io_address, bytes)) {}
 		}
 	}
 	//	reset DMA-start register
 	memory[0x420b] = 0x00;
 }
 
-void startHDMA() {
-	for (u8 i = 0; i < 8; i++) {
+void BUS_startHDMA() {
+	u8 dma_id = 0;
+	for (u8 dma_id = 0; dma_id < 8; dma_id++) {
+		if (HDMAS[dma_id].enabled && !HDMAS[dma_id].terminated) {
+			if (--HDMAS[dma_id].line_counter == 0) {
+				HDMAS[dma_id].repeat = memory[HDMAS[dma_id].address] >> 7;
+				HDMAS[dma_id].line_counter = memory[HDMAS[dma_id].address] & 0x7f;
+				HDMAS[dma_id].address++;
+				BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].address, HDMAS[dma_id].IO, 100);
+				if (!memory[HDMAS[dma_id].address]) {
+					HDMAS[dma_id].terminated = true;
+				}
 
+				//	TODO - Indirect
+				if (HDMAS[dma_id].addressing_mode) {		//	0 - Direct, 1 - Indirect
+				}
+			}
+		}
+	}
+}
+
+void BUS_resetHDMA() {
+	u8 dma_id = 0;
+	for (u8 dma_id = 0; dma_id < 8; dma_id++) {
+		if (HDMAS[dma_id].enabled) {
+			HDMAS[dma_id].terminated = false;
+			HDMAS[dma_id].IO = memory[0x4301 + (dma_id * 0x10)];
+			HDMAS[dma_id].addressing_mode = (memory[0x4300 + (dma_id * 0x10)] >> 6) & 1;
+			HDMAS[dma_id].directon = memory[0x4300 + (dma_id * 0x10)] >> 7;
+			HDMAS[dma_id].dma_mode = memory[0x4300 + (dma_id * 0x10)] & 0b111;
+			HDMAS[dma_id].indirect_address = (memory[0x4307 + (dma_id * 0x10)] << 16) | (memory[0x4306 + (dma_id * 0x10)] << 8) | memory[0x4305 + (dma_id * 0x10)];
+			HDMAS[dma_id].aaddress = (memory[0x4304 + (dma_id * 0x10)] << 16) | (memory[0x4303 + (dma_id * 0x10)] << 8) | memory[0x4302 + (dma_id * 0x10)];
+			HDMAS[dma_id].address = HDMAS[dma_id].aaddress;
+			HDMAS[dma_id].repeat = memory[HDMAS[dma_id].address] >> 7;
+			HDMAS[dma_id].line_counter = memory[HDMAS[dma_id].address] & 0x7f;
+			HDMAS[dma_id].address++;
+			BUS_DMAtransfer(dma_id, HDMAS[dma_id].dma_mode, HDMAS[dma_id].directon, 0, HDMAS[dma_id].address, HDMAS[dma_id].IO, 100);	//	initial transfer
+			//	TODO Load Indirect Address if necessary - but how and where
+		}
 	}
 }

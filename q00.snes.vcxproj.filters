@@ -24,9 +24,6 @@
     <ClCompile Include="input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mmu.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ppu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -34,6 +31,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="bus.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -47,9 +47,6 @@
     <ClInclude Include="input.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="mmu.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="ppu.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -57,6 +54,9 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="main.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="bus.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
