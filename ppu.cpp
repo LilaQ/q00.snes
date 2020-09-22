@@ -48,6 +48,10 @@ u16 BGSCROLLY[4] = { 0, 0, 0, 0 };
 bool MOSAIC_ENABLED[4] = { false, false, false, false };
 u8 MOSAIC_SIZE = 0;
 
+//	INIDISP
+double MASTER_BRIGHTNESS = 0;
+bool FORCED_BLANKING = false;
+
 void PPU_init(string filename) {
 
 	/*
@@ -164,11 +168,11 @@ void writeToFB(u16 *BG, u16 x, u16 y, u16 width, u16 v) {
 
 u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 palette_base, u8 bpp) {
 	if (id == 0) return 0x00000000;	//	id 0 = transparency
-	return CGRAM[(id + palette * (bpp * bpp)) + palette_base] << 1 | 1;
+	return (u16)(CGRAM[(id + palette * (bpp * bpp)) + palette_base] * MASTER_BRIGHTNESS) << 1 | 1;
 }
 
 void renderBackdrop(u16 srcx, u16 srcy, u16* BG) {
-	writeToFB(BG, srcx, srcy, 256, (CGRAM[0x00] << 1 | 1));
+	writeToFB(BG, srcx, srcy, 256, ((u16)(CGRAM[0x00] * MASTER_BRIGHTNESS) << 1 | 1));
 };
 
 void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u8 bg_palette_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
@@ -410,6 +414,8 @@ void PPU_setMosaic(u8 val) {
 void PPU_writeINIDISP(u8 val) {
 	//	TODO
 	//	Force Blanking & Brightness
+	MASTER_BRIGHTNESS = (val & 0b1111) / (double)0xf;
+	FORCED_BLANKING = val >> 7;
 }
 
 //	reading the VBlank NMI Flag automatically aknowledges it
