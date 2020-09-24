@@ -172,22 +172,58 @@ void PPU_drawFrame() {
 		if (MOSAIC_ENABLED[i])
 			processMosaic(MAIN_BGS[i]);
 
+	//	Prep Textures
 	SDL_UpdateTexture(TEXTURE[0], NULL, MAIN_BGS[0], 256 * sizeof(u16));
 	SDL_UpdateTexture(TEXTURE[1], NULL, MAIN_BGS[1], 256 * sizeof(u16));
 	SDL_UpdateTexture(TEXTURE[2], NULL, MAIN_BGS[2], 256 * sizeof(u16));
 	SDL_UpdateTexture(TEXTURE[3], NULL, MAIN_BGS[3], 256 * sizeof(u16));
 	SDL_UpdateTexture(BACKDROP_TEX, NULL, MAIN_BACKDROP, 256 * sizeof(u16));
 
+	//	Backdrop
 	SDL_RenderCopy(renderer, BACKDROP_TEX, NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-	SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
+
+	
+
+	//	BGs
+	if(BG_ENABLED[3])
+		SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
+	if (BG_ENABLED[2])
+		SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
+	if (BG_ENABLED[1])
+		SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
+	if (BG_ENABLED[0])
+		SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
+
+
+	//	SubScreens
+	/*if (SUB_ENABLED[3]) {
+		SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_ADD);
+		SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
+	}
+	if (SUB_ENABLED[2]) {
+		SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_ADD);
+		SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
+	}*/
+	if (SUB_ENABLED[1]) {
+		SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_ADD);
+		SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
+	}
+	/*if (SUB_ENABLED[0]) {
+		SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_ADD);
+		SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
+	}*/
+
+
+
 	SDL_RenderPresent(renderer);
 	
 }
 
 void writeToFB(u16 *BG, u16 x, u16 y, u16 width, u16 v) {
+	if (y > 255)
+		printf("OOPS Y\n");
+	if (x > 255)
+		printf("OOPS X\n");
 	BG[y * width + x] = v;
 }
 
@@ -303,7 +339,6 @@ void renderBGat8BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 b
 }
 
 void PPU_render() {
-	const u16 texture_width = 256;
 	u16 bg_base;
 	u8 bg_size_w = 0, bg_size_h = 0, bg_palette_base = 0;
 	u16 tile_base[4] = {
@@ -328,11 +363,11 @@ void PPU_render() {
 				case 0b11: bg_size_w = 64; bg_size_h = 64; break;
 				}
 				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id], texture_width);
+					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, bg_size_w * 8);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id], texture_width);
+					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, bg_size_w * 8);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id], texture_width);
+					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, bg_palette_base, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, bg_size_w * 8);
 			}
 		}
 	}
