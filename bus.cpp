@@ -341,6 +341,13 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 			PPU_writeCGRAM(val, memory[0x2121]);
 			break;
 
+		case 0x212c:			//	PPU - TM - MainScreen Enable / Disable
+			PPU_writeBGEnabled(val);
+			break;
+		case 0x212d:			//	PPU - TS - SubScreen Enable / Disable
+			PPU_writeSUBEnabled(val);
+			break;
+
 		case 0x2140:			//	APU - Main communication registers
 		case 0x2141:
 		case 0x2142:

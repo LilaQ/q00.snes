@@ -23,6 +23,10 @@ void PPU_writeBGScrollX(u8 bg_id, u8 val);
 void PPU_writeBGScrollY(u8 bg_id, u8 val);
 void PPU_setMosaic(u8 val);
 void PPU_writeINIDISP(u8 val);
+void PPU_writeColorMathControlRegisterA(u8 val);
+void PPU_writeColorMathControlRegisterB(u8 val);
+void PPU_writeBGEnabled(u8 val);
+void PPU_writeSUBEnabled(u8 val);
 
 //	debug
 void debug_drawBG(u8 id);
