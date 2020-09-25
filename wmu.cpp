@@ -18,6 +18,7 @@
 #undef main
 
 SDL_Window* mainWindow;				//	Main Window
+SDL_Event event;					//	Eventhandler for all SDL events
 
 void initWindow(SDL_Window *win, std::string filename) {
 	mainWindow = win;
@@ -61,7 +62,7 @@ void initWindow(SDL_Window *win, std::string filename) {
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
 }
 
-void handleWindowEvents(SDL_Event event) {
+void handleWindowEvents() {
 	//	poll events from menu
 	SDL_PollEvent(&event);
 	switch (event.type)

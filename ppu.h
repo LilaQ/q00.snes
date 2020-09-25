@@ -10,14 +10,16 @@ typedef uint32_t	u32;
 //	custom blendmodes
 const SDL_BlendMode SDL_BLENDMODE_SUB = SDL_ComposeCustomBlendMode(SDL_BLENDFACTOR_SRC_ALPHA, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_REV_SUBTRACT, SDL_BLENDFACTOR_ZERO, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
 
+using namespace std;
+
 //	Functions
-void PPU_init(std::string filename);
+void PPU_init(string filename);
 void PPU_step(u8 steps);
 void PPU_writeVRAMhigh(u8 val, u16 adr);
 void PPU_writeVRAMlow(u8 val, u16 adr);
 u16 PPU_readVRAM(u16 adr);
 void PPU_drawFrame();
-void PPU_setTitle(std::string filename);
+void PPU_setTitle(string filename);
 u16 PPU_readCGRAM(u8 adr);
 void PPU_writeCGRAM(u8 val, u8 adr);
 void PPU_reset();
@@ -30,6 +32,8 @@ void PPU_writeColorMathControlRegisterA(u8 val);
 void PPU_writeColorMathControlRegisterB(u8 val);
 void PPU_writeBGEnabled(u8 val);
 void PPU_writeSUBEnabled(u8 val);
+void PPU_writeBGTilebase(u8 bg_id, u8 val);
+void PPU_writeBGScreenSizeAndBase(u8 bg_id, u8 val);
 
 //	debug
 void debug_drawBG(u8 id);

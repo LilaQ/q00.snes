@@ -18,12 +18,12 @@ typedef uint16_t	u16;
 u8 pbc = 0;
 
 Cartridge cartridge;
-std::vector<u8> memory(0xffffff);
-std::vector<u8> cartridge_memory;
+vector<u8> memory(0xffffff);
+vector<u8> cartridge_memory;
 
 DMA HDMAS[8];
 
-void BUS_reset(std::string filename) {
+void BUS_reset(string filename) {
 	PPU_setTitle(filename);
 	BUS_reset();
 }
@@ -38,35 +38,35 @@ void BUS_reset() {
 	resetCPU();
 }
 
-std::vector<u8> readFile(const char* filename)
+vector<u8> readFile(const char* filename)
 {
 	// open the file:
-	std::ifstream file(filename, std::ios::binary);
+	ifstream file(filename, ios::binary);
 
 	// Stop eating new lines in binary mode!!!
-	file.unsetf(std::ios::skipws);
+	file.unsetf(ios::skipws);
 
 	// get its size:
-	std::streampos fileSize;
+	streampos fileSize;
 
-	file.seekg(0, std::ios::end);
+	file.seekg(0, ios::end);
 	fileSize = file.tellg();
-	file.seekg(0, std::ios::beg);
+	file.seekg(0, ios::beg);
 
 	// reserve capacity
-	std::vector<u8> vec;
+	vector<u8> vec;
 	vec.reserve(fileSize);
 
 	// read the data:
 	vec.insert(vec.begin(),
-		std::istream_iterator<u8>(file),
-		std::istream_iterator<u8>());
+		istream_iterator<u8>(file),
+		istream_iterator<u8>());
 
 	return vec;
 }
 
 //	copy cartridge to memory
-void BUS_loadROM(std::string filename) {
+void BUS_loadROM(string filename) {
 
 	//	load cartridge to memory
 	cartridge_memory = readFile(filename.c_str());
@@ -118,25 +118,25 @@ void BUS_loadROM(std::string filename) {
 	}
 	cartridge.initSNESHeader(header);
 	
-	std::cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
-	std::cout << "------------------------------------------------------\n";
-	std::cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
-	std::cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
-	std::cout << "Region:\t\t\t" << cartridge.getRegionString() << "\n";
-	std::cout << "GameCode:\t\t" << cartridge.getGameCodeString() << "\n";
-	std::cout << "ROM speed:\t\t" << ((cartridge.isFastROM) ? "FastROM (3.58 MHz)" : "SlowROM (2.68 MHz)") << "\n";
-	std::cout << "ROM type:\t\t" << (cartridge.isHiROM ? "HiROM" : "LoROM") << "\n";
-	std::cout << "ROM size:\t\t" << cartridge.getRAMSizeString() << "\n";
-	std::cout << "SRAM Size:\t\t" << cartridge.getRAMSizeString() << "\n";
-	std::cout << "ROM chipset:\t\t" << cartridge.getROMChipsetString() << "\n";
-	std::cout << "ROM coprocessor:\t" << cartridge.getROMCoprocessorString() << "\n";
-	std::cout << "Version:\t\t" << cartridge.getVersionString() << "\n";
-	std::cout << "Checksum:\t\t" << cartridge.getChecksumString() << "\n";
-	std::cout << "Checksum complement:\t" << cartridge.getChecksumComplementString() << "\n";
-	std::cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
-	std::cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
-	std::cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
-	std::cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
+	cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
+	cout << "------------------------------------------------------\n";
+	cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
+	cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
+	cout << "Region:\t\t\t" << cartridge.getRegionString() << "\n";
+	cout << "GameCode:\t\t" << cartridge.getGameCodeString() << "\n";
+	cout << "ROM speed:\t\t" << ((cartridge.isFastROM) ? "FastROM (3.58 MHz)" : "SlowROM (2.68 MHz)") << "\n";
+	cout << "ROM type:\t\t" << (cartridge.isHiROM ? "HiROM" : "LoROM") << "\n";
+	cout << "ROM size:\t\t" << cartridge.getRAMSizeString() << "\n";
+	cout << "SRAM Size:\t\t" << cartridge.getRAMSizeString() << "\n";
+	cout << "ROM chipset:\t\t" << cartridge.getROMChipsetString() << "\n";
+	cout << "ROM coprocessor:\t" << cartridge.getROMCoprocessorString() << "\n";
+	cout << "Version:\t\t" << cartridge.getVersionString() << "\n";
+	cout << "Checksum:\t\t" << cartridge.getChecksumString() << "\n";
+	cout << "Checksum complement:\t" << cartridge.getChecksumComplementString() << "\n";
+	cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
+	cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
+	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
+	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
 
 	BUS_reset(filename);
 }
@@ -254,14 +254,33 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 		switch (adr)
 		{
 
-		case 0x2100:				//	Forced Blanking	/ Master Brightness
+		case 0x2100:				//	PPU - Forced Blanking	/ Master Brightness
 			PPU_writeINIDISP(val);
 			break;
 
-		case 0x2106:				//	Set Mosaic
+		case 0x2106:				//	PPU - Set Mosaic
 			PPU_setMosaic(val);
 			break;
-
+		case 0x2107:				//	PPU - BG1SC - BG1 Screen size and Screen Base (W)
+			PPU_writeBGScreenSizeAndBase(0, val);
+			break;
+		case 0x2108:				//	PPU - BG2SC - BG2 Screen size and Screen Base (W)
+			PPU_writeBGScreenSizeAndBase(1, val);
+			break;
+		case 0x2109:				//	PPU - BG3SC - BG3 Screen size and Screen Base (W)
+			PPU_writeBGScreenSizeAndBase(2, val);
+			break;
+		case 0x210a:				//	PPU - BG4SC - BG4 Screen size and Screen Base (W)
+			PPU_writeBGScreenSizeAndBase(3, val);
+			break;
+		case 0x210b:				//	PPU - BG12NBA - BG1/BG2 Tilebase
+			PPU_writeBGTilebase(0, val & 0xf);
+			PPU_writeBGTilebase(1, val >> 4);
+			break;
+		case 0x210c:				//	PPU - BG34BA - BG3/BG4 Tilebase
+			PPU_writeBGTilebase(2, val & 0xf);
+			PPU_writeBGTilebase(3, val >> 4);
+			break;
 		case 0x210d:				//	BG1 Horizontal Scroll
 			PPU_writeBGScrollX(0, val);
 			break;	

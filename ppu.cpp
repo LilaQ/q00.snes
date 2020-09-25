@@ -49,6 +49,16 @@ bool BGSCROLLY_Flipflop[4] = { false, false, false, false };
 u16 BGSCROLLX[4] = { 0, 0, 0, 0 };
 u16 BGSCROLLY[4] = { 0, 0, 0, 0 };
 
+//	BG Tilebase
+u16 BG_TILEBASE[4] = { 0, 0, 0, 0 };
+
+//	BG Screen base
+u16 BG_BASE[4] = { 0, 0, 0, 0 };
+
+//	BG Tilesizes
+u8 BG_TILES_H[4] = { 32, 32, 32, 32 };
+u8 BG_TILES_V[4] = { 32, 32, 32, 32 };
+
 //	Mosaic
 bool MOSAIC_ENABLED[4] = { false, false, false, false };
 u8 MOSAIC_SIZE = 0;
@@ -263,9 +273,6 @@ void PPU_drawFrame() {
 		}
 	}
 
-
-	
-
 	SDL_RenderPresent(renderer);
 	
 }
@@ -381,59 +388,44 @@ void renderBGat8BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(64 *	((b_7 >> h_shift) & 1)) +
 					(128 *	((b_8 >> h_shift) & 1));
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 8));
-	if (orgy == 510 && getRGBAFromCGRAM(v, b_palette_nr, 8) == 0x000000)
-		printf("");
 }
 
 void PPU_render() {
-	u16 bg_base;
-	u8 bg_size_w = 0, bg_size_h = 0, bg_palette_base = 0;
-	u16 tile_base[4] = {
-		(u16)((BUS_readFromMem(0x210b) & 0xf) * 0x1000),
-		(u16)((BUS_readFromMem(0x210b) >> 4) * 0x1000),
-		(u16)((BUS_readFromMem(0x210c) & 0xf) * 0x1000),
-		(u16)((BUS_readFromMem(0x210c) >> 4) * 0x1000)
-	};
+	u8 bg_palette_base = 0;
 
 	//	iterate all BGs
 	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
 		if (BG_ENABLED[bg_id] || SUB_ENABLED[bg_id]) {								//	Check if the BG (1/2/3/4) is enabled
 			u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
 			if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
-				bg_base = ((BUS_readFromMem(0x2107 + bg_id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
+				
 
-				switch (BUS_readFromMem(0x2107 + bg_id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
-				case 0b00: bg_size_w = 32; bg_size_h = 32; break;
-				case 0b01: bg_size_w = 64; bg_size_h = 32; break;
-				case 0b10: bg_size_w = 32; bg_size_h = 64; break;
-				case 0b11: bg_size_w = 64; bg_size_h = 64; break;
-				}
 				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, bg_size_w * 8);
+					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, BG_TILES_H[bg_id] * 8);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, bg_size_w * 8);
+					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, BG_TILES_H[bg_id] * 8);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], bg_base, bg_size_w, bg_size_h, tile_base[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, bg_size_w * 8);
+					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, BG_TILES_H[bg_id] * 8);
 			}
 		}
 	}
 	renderBackdrop(RENDER_X, RENDER_Y, MAIN_BACKDROP);
 }
 
+u16 vbl = 0;
 void PPU_step(u8 steps) {
 
-	for (u8 s = 0; s < steps; s++) {
+	while (steps--) {
 
-		RENDER_X++;
-		if (RENDER_X == 256) {					//	H-Blank starts
+		if (++RENDER_X == 256) {					//	H-Blank starts
 			BUS_startHDMA();
 		}		
 		else if (RENDER_X == 341) {				//	PAL Line, usually takes up 341 dot cycles (unless interlace=on, field=1, line=311 it will be one additional dot cycle)
 			RENDER_X = 0;
-			RENDER_Y++;
-			if (RENDER_Y == 241) {				//	V-Blank starts
+			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::set(Interrupts::NMI);
+				printf("VBlank %d\n", vbl++);
 			}
 			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
 				RENDER_Y = 0;
@@ -447,6 +439,7 @@ void PPU_step(u8 steps) {
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			INPUT_stepJoypadAutoread();
+			handleWindowEvents();
 			PPU_drawFrame();
 			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
@@ -484,6 +477,20 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 
 u16 PPU_readCGRAM(u8 adr) {
 	return CGRAM[adr];
+}
+
+void PPU_writeBGScreenSizeAndBase(u8 bg_id, u8 val) {
+	BG_BASE[bg_id] = ((val >> 2) << 10) & 0x7fff;
+	switch (val & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
+	case 0b00: BG_TILES_V[bg_id] = 32; BG_TILES_H[bg_id] = 32; break;
+	case 0b01: BG_TILES_V[bg_id] = 64; BG_TILES_H[bg_id] = 32; break;
+	case 0b10: BG_TILES_V[bg_id] = 32; BG_TILES_H[bg_id] = 64; break;
+	case 0b11: BG_TILES_V[bg_id] = 64; BG_TILES_H[bg_id] = 64; break;
+	}
+}
+
+void PPU_writeBGTilebase(u8 bg_id, u8 val) {
+	BG_TILEBASE[bg_id] = val * 0x1000;
 }
 
 void PPU_writeBGScrollX(u8 bg_id, u8 val) {

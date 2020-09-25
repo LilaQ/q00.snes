@@ -13,8 +13,6 @@
 #include "SDL2/include/SDL.h"
 #undef main
 
-SDL_Event event;					//	Eventhandler for all SDL events
-
 //		Kroms tests from https://github.com/PeterLemon/SNES/tree/master/CPUTest/CPU
 //string filename = "CPUADC.sfc";		//	-	Passed
 //string filename = "CPUAND.sfc";		//	-	Passed
@@ -53,7 +51,8 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "smw.smc";
 //string filename = "snestest.smc";
 
-std::string filename = "HiColor575MystSub.sfc";
+//string filename = "HiColor575MystSub.sfc";
+string filename = "translucent.smc";
 
 bool unpaused = true;
 
@@ -81,11 +80,10 @@ int main()
 			ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
 			PPU_step( ppu_cycles_left / 4 );
 			ppu_cycles_left -= (ppu_cycles_left / 4);
-			//std::this_thread::sleep_for(std::chrono::nanoseconds(5));
+			//this_thread::sleep_for(chrono::nanoseconds(5));
 
-			stepAPU(lastcyc);
+			//stepAPU(lastcyc);
 		}
-		handleWindowEvents(event);
 	}
 
 	return 1;

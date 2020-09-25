@@ -10,7 +10,7 @@
 int SamplesPerSecond = 44100;			//	resolution
 bool SoundIsPlaying = false;
 float volume = 0.5;
-std::vector<float> Mixbuf;
+vector<float> Mixbuf;
 
 internal void SDLInitAudio(int32_t SamplesPerSecond, int32_t BufferSize)
 {

@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+using namespace std;
 void initAPU();
 void stepAPU(unsigned char cycles);
 void resetSC1length(uint8_t val);
