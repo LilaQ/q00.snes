@@ -12,7 +12,6 @@
 #include "SDL2/include/SDL_syswm.h"
 #include "SDL2/include/SDL.h"
 #undef main
-using namespace::std;
 
 SDL_Event event;					//	Eventhandler for all SDL events
 
@@ -22,7 +21,7 @@ SDL_Event event;					//	Eventhandler for all SDL events
 //string filename = "CPUASL.sfc";		//	-	Passed
 //string filename = "CPUBIT.sfc";		//	-	Passed
 //string filename = "CPUBRA.sfc";		//	-	Passed
-string filename = "CPUCMP.sfc";		//	-	Passed
+//string filename = "CPUCMP.sfc";		//	-	Passed
 //string filename = "CPUDEC.sfc";		//	-	Passed
 //string filename = "CPUEOR.sfc";		//	-	Passed
 //string filename = "CPUINC.sfc";		//	-	Passed
@@ -53,6 +52,8 @@ string filename = "CPUCMP.sfc";		//	-	Passed
 //string filename = "8x8BGMap8BPP32x328PAL.sfc";
 //string filename = "smw.smc";
 //string filename = "snestest.smc";
+
+std::string filename = "HiColor575MystSub.sfc";
 
 bool unpaused = true;
 

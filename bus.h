@@ -6,7 +6,6 @@
 #include <string>
 #include <map>
 #include <iostream>
-using namespace::std;
 
 typedef uint8_t		u8;
 typedef uint16_t	u16;
@@ -48,7 +47,7 @@ private:
 		ROM_CO_CPU_SRAM_BATTERY = 0b0101,
 		ROM_CO_CPU_BATTERY		= 0b0110
 	};
-	map<u8, string> ROM_chipset_string = {
+	std::map<u8, std::string> ROM_chipset_string = {
 		{0b0000, "ROM only"},
 		{0b0001, "ROM + SRAM"},
 		{0b0010, "ROM + SRAM & Battery"},
@@ -68,7 +67,7 @@ private:
 		Other					= 0b1000,
 		Custom					= 0b1111
 	};
-	map<u8, string> ROM_coprocessor_string = {
+	std::map<u8, std::string> ROM_coprocessor_string = {
 		{0b0000, "DSP"},
 		{0b0001, "SuperFX"},
 		{0b0010, "OBC1"},
@@ -79,7 +78,7 @@ private:
 		{0b1111, "Custom (v2/v3 header)"}
 	};
 
-	map<u8, string> Region = {
+	std::map<u8, std::string> Region = {
 		{0x00, "Japan"},
 		{0x01, "Most of North America"},
 		{0x02, "Most of Europe"},
@@ -101,7 +100,7 @@ private:
 	};
 
 	u8 header_version;
-	string game_title;
+	std::string game_title;
 	ROM_chipset rom_chipset;
 	ROM_coprocessor rom_coprocessor;
 	u8 rom_size;			//	size bits
@@ -114,8 +113,8 @@ private:
 	u32 xram_real_size_v3_header;
 	u8 region;
 	u8 dev_id;
-	string dev_id_v3_header;
-	string game_code_v3_header;
+	std::string dev_id_v3_header;
+	std::string game_code_v3_header;
 	u8 version;
 	u16 checksum_complement;
 	u16 checksum;
@@ -159,8 +158,8 @@ public:
 		sram_real_size = (sram_size != 0) ? 0x400 << sram_size : 0;
 		region = header[0x29];
 		dev_id = header[0x2a];
-		dev_id_v3_header = (header_version == 3) ? to_string((char)header[0x00] + (char)header[0x01]) : "/";
-		game_code_v3_header = (header_version == 3) ? to_string((char)header[0x02] + (char)header[0x03] + (char)header[0x04] + (char)header[0x05]) : "/";
+		dev_id_v3_header = (header_version == 3) ? std::to_string((char)header[0x00] + (char)header[0x01]) : "/";
+		game_code_v3_header = (header_version == 3) ? std::to_string((char)header[0x02] + (char)header[0x03] + (char)header[0x04] + (char)header[0x05]) : "/";
 		flash_size_v3_header = (header_version == 3) ? header[0x0c] : 0;
 		flash_real_size_v3_header = (flash_size_v3_header != 0) ? 0x400 << flash_size_v3_header : 0;
 		xram_size_v3_header = (header_version == 3) ? header[0x0c] : 0;
@@ -180,54 +179,54 @@ public:
 		emu_reset_vector = (header[0x4d] << 8) | header[0x4c];
 		emu_irq_brk_vector = (header[0x4f] << 8) | header[0x4e];
 	}
-	string getTitleString() {
+	std::string getTitleString() {
 		return game_title;
 	}
-	string getROMChipsetString() {
+	std::string getROMChipsetString() {
 		return ROM_chipset_string[(u8)rom_chipset];
 	}
-	string getROMCoprocessorString() {
+	std::string getROMCoprocessorString() {
 		return ROM_coprocessor_string[(u8)rom_coprocessor];
 	}
-	string getROMSizeString() {
-		return to_string(rom_real_size);
+	std::string getROMSizeString() {
+		return std::to_string(rom_real_size);
 	}
-	string getRAMSizeString() {
-		return to_string(sram_real_size);
+	std::string getRAMSizeString() {
+		return std::to_string(sram_real_size);
 	}
-	string getFlashSizeString() {
-		return to_string(flash_real_size_v3_header);
+	std::string getFlashSizeString() {
+		return std::to_string(flash_real_size_v3_header);
 	}
-	string getExpansionRAMString() {
-		return to_string(xram_real_size_v3_header);
+	std::string getExpansionRAMString() {
+		return std::to_string(xram_real_size_v3_header);
 	}
-	string getRegionString() {
+	std::string getRegionString() {
 		return Region[region];
 	}
-	string getDevIDString() {
+	std::string getDevIDString() {
 		if (header_version != 3)
-			return to_string(dev_id);
+			return std::to_string(dev_id);
 		return dev_id_v3_header;
 	}
-	string getGameCodeString() {
+	std::string getGameCodeString() {
 		return game_code_v3_header;
 	}
-	string getVersionString() {
-		return "1." + to_string(version);
+	std::string getVersionString() {
+		return "1." + std::to_string(version);
 	}
-	string getChecksumString() {
-		return to_string(checksum);
+	std::string getChecksumString() {
+		return std::to_string(checksum);
 	}
-	string getChecksumComplementString() {
-		return to_string(checksum_complement);
+	std::string getChecksumComplementString() {
+		return std::to_string(checksum_complement);
 	}
-	string getChecksumOkay() {
+	std::string getChecksumOkay() {
 		if ((checksum & 0xff) + (checksum >> 8) + (checksum_complement & 0xff) + (checksum_complement >> 8) != 0x1fe)
 			return "Corrupted !";
 		return "Correct";
 	}
-	string getHeaderVersionString() {
-		return to_string(header_version);
+	std::string getHeaderVersionString() {
+		return std::to_string(header_version);
 	}
 
 };
@@ -246,9 +245,9 @@ static const u16 VECTOR_EMU_RESET = 0xfffc;
 static const u16 VECTOR_EMU_IRQBRK = 0xfffe;
 
 //	base methods
-void BUS_reset(string filename);
+void BUS_reset(std::string filename);
 void BUS_reset();
-void BUS_loadROM(string filename);
+void BUS_loadROM(std::string filename);
 u8 BUS_readFromMem(u32 adr);
 void BUS_writeToMem(u8 val, u32 adr);
 void BUS_startDMA();

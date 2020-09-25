@@ -17,15 +17,13 @@
 #include "wmu.h"
 #undef main
 
-using namespace::std;
-
 SDL_Window* mainWindow;				//	Main Window
 
-void initWindow(SDL_Window *win, string filename) {
+void initWindow(SDL_Window *win, std::string filename) {
 	mainWindow = win;
 	char title[50];
-	string rom = filename;
-	if (filename.find_last_of("\\") != string::npos)
+	std::string rom = filename;
+	if (filename.find_last_of("\\") != std::string::npos)
 		rom = filename.substr(filename.find_last_of("\\") + 1);
 	snprintf(title, sizeof title, "[ q00.snes ][ rom: %s ]", rom.c_str());
 	SDL_SetWindowTitle(mainWindow, title);
@@ -190,7 +188,7 @@ void showCGRAMMap() {
 	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 710, 460, hwnd, NULL, hInst, NULL);
 
 	//	MEMDUMP Control
-	string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
+	std::string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
 	for (int i = 0; i < 0x100; i += 0x8) {
 		char title[185];
 		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x      |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i * 2,
@@ -227,7 +225,7 @@ void showCGRAMMap() {
 			((PPU_readCGRAM(i + 7) & 0xff) > 32) ? PPU_readCGRAM(i + 7) & 0xff : '.',
 			((PPU_readCGRAM(i + 7) >> 8) > 32) ? PPU_readCGRAM(i + 7) >> 8 : '.'
 		);
-		s.append((string)title);
+		s.append((std::string)title);
 	}
 
 	const TCHAR* text = s.c_str();
@@ -260,7 +258,7 @@ void showVRAMMap() {
 	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 710, 860, hwnd, NULL, hInst, NULL);
 
 	//	MEMDUMP Control
-	string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
+	std::string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
 	for (int i = 0; i < 0x8000; i += 0x8) {
 		char title[85];
 		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x     |%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\r\n", i*2,
@@ -297,7 +295,7 @@ void showVRAMMap() {
 			((PPU_readVRAM(i + 7) & 0xff) > 32) ? PPU_readVRAM(i + 7) & 0xff : '.',
 			((PPU_readVRAM(i + 7) >> 8) > 32) ? PPU_readVRAM(i + 7) >> 8 : '.'
 		);
-		s.append((string)title);
+		s.append((std::string)title);
 	}
 
 	const TCHAR* text = s.c_str();

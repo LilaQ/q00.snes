@@ -11,7 +11,6 @@
 #include "ppu.h"
 #include "apu.h"
 #include "input.h"
-using namespace::std;
 
 typedef uint8_t		u8;
 typedef uint16_t	u16;
@@ -19,12 +18,12 @@ typedef uint16_t	u16;
 u8 pbc = 0;
 
 Cartridge cartridge;
-vector<u8> memory(0xffffff);
-vector<u8> cartridge_memory;
+std::vector<u8> memory(0xffffff);
+std::vector<u8> cartridge_memory;
 
 DMA HDMAS[8];
 
-void BUS_reset(string filename) {
+void BUS_reset(std::string filename) {
 	PPU_setTitle(filename);
 	BUS_reset();
 }
@@ -60,14 +59,14 @@ std::vector<u8> readFile(const char* filename)
 
 	// read the data:
 	vec.insert(vec.begin(),
-		istream_iterator<u8>(file),
-		istream_iterator<u8>());
+		std::istream_iterator<u8>(file),
+		std::istream_iterator<u8>());
 
 	return vec;
 }
 
 //	copy cartridge to memory
-void BUS_loadROM(string filename) {
+void BUS_loadROM(std::string filename) {
 
 	//	load cartridge to memory
 	cartridge_memory = readFile(filename.c_str());
@@ -119,25 +118,25 @@ void BUS_loadROM(string filename) {
 	}
 	cartridge.initSNESHeader(header);
 	
-	/*cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
-	cout << "------------------------------------------------------\n";
-	cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
-	cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
-	cout << "Region:\t\t\t" << cartridge.getRegionString() << "\n";
-	cout << "GameCode:\t\t" << cartridge.getGameCodeString() << "\n";
-	cout << "ROM speed:\t\t" << ((cartridge.isFastROM) ? "FastROM (3.58 MHz)" : "SlowROM (2.68 MHz)") << "\n";
-	cout << "ROM type:\t\t" << (cartridge.isHiROM ? "HiROM" : "LoROM") << "\n";
-	cout << "ROM size:\t\t" << cartridge.getRAMSizeString() << "\n";
-	cout << "SRAM Size:\t\t" << cartridge.getRAMSizeString() << "\n";
-	cout << "ROM chipset:\t\t" << cartridge.getROMChipsetString() << "\n";
-	cout << "ROM coprocessor:\t" << cartridge.getROMCoprocessorString() << "\n";
-	cout << "Version:\t\t" << cartridge.getVersionString() << "\n";
-	cout << "Checksum:\t\t" << cartridge.getChecksumString() << "\n";
-	cout << "Checksum complement:\t" << cartridge.getChecksumComplementString() << "\n";
- 	cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
-	cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
-	cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
-	cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";*/
+	std::cout << "Loaded '" << filename << "' - " << filesizeInKb << " kbytes..\n";
+	std::cout << "------------------------------------------------------\n";
+	std::cout << "SNES Header version:\t" << cartridge.getHeaderVersionString() << "\n";
+	std::cout << "ROM Name:\t\t" << cartridge.getTitleString() << "\n";
+	std::cout << "Region:\t\t\t" << cartridge.getRegionString() << "\n";
+	std::cout << "GameCode:\t\t" << cartridge.getGameCodeString() << "\n";
+	std::cout << "ROM speed:\t\t" << ((cartridge.isFastROM) ? "FastROM (3.58 MHz)" : "SlowROM (2.68 MHz)") << "\n";
+	std::cout << "ROM type:\t\t" << (cartridge.isHiROM ? "HiROM" : "LoROM") << "\n";
+	std::cout << "ROM size:\t\t" << cartridge.getRAMSizeString() << "\n";
+	std::cout << "SRAM Size:\t\t" << cartridge.getRAMSizeString() << "\n";
+	std::cout << "ROM chipset:\t\t" << cartridge.getROMChipsetString() << "\n";
+	std::cout << "ROM coprocessor:\t" << cartridge.getROMCoprocessorString() << "\n";
+	std::cout << "Version:\t\t" << cartridge.getVersionString() << "\n";
+	std::cout << "Checksum:\t\t" << cartridge.getChecksumString() << "\n";
+	std::cout << "Checksum complement:\t" << cartridge.getChecksumComplementString() << "\n";
+	std::cout << "Checksum okay? \t\t" << cartridge.getChecksumOkay() << "\n";
+	std::cout << "Dev-ID:\t\t\t" << cartridge.getDevIDString() << "\n";
+	std::cout << "Flash size:\t\t" << cartridge.getFlashSizeString() << "\n";
+	std::cout << "ExpRAM size:\t\t" << cartridge.getExpansionRAMString() << "\n\n";
 
 	BUS_reset(filename);
 }
@@ -211,7 +210,7 @@ u8 BUS_readFromMem(u32 fulladr) {
 			case 0x2143:
 				break;
 
-			case 0x4210:			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
+			case 0x4210: {			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
 				//	TODO there is NMI interrupt enable at $4200 that needs to be included somewhere around the flag
 				//	TDOD test with WAI instruction like here : https://wiki.superfamicom.org/using-the-nmi-vblank#toc-1
 				/*if (NMI == 0x42) {
@@ -222,8 +221,11 @@ u8 BUS_readFromMem(u32 fulladr) {
 					NMI = 0x42;
 					return NMI;
 				}*/
-				return (PPU_getVBlankNMIFlag() << 7) | 0x02;
+				bool res = Interrupts::is(Interrupts::NMI);
+				Interrupts::clear(Interrupts::NMI);
+				return (res << 7) | 0x02;
 				break;
+			}
 			case 0x4211:			//	PPU Interrupts - H/V-Timer IRQ Flag (R) [Read/Ack]
 				return 0;
 				break;
@@ -346,6 +348,13 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 			break;
 		case 0x212d:			//	PPU - TS - SubScreen Enable / Disable
 			PPU_writeSUBEnabled(val);
+			break;
+
+		case 0x2130:			//	PPU - CGWSEL - Color Math Control Register A (W)
+			PPU_writeColorMathControlRegisterA(val);
+			break;
+		case 0x2131:			//	PPU - CGADSUB - Color Math Control Registers B (W)
+			PPU_writeColorMathControlRegisterB(val);
 			break;
 
 		case 0x2140:			//	APU - Main communication registers

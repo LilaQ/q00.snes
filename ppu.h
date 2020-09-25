@@ -7,14 +7,17 @@ typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
 
-using namespace::std;
-void PPU_init(string filename);
+//	custom blendmodes
+const SDL_BlendMode SDL_BLENDMODE_SUB = SDL_ComposeCustomBlendMode(SDL_BLENDFACTOR_SRC_ALPHA, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_REV_SUBTRACT, SDL_BLENDFACTOR_ZERO, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD);
+
+//	Functions
+void PPU_init(std::string filename);
 void PPU_step(u8 steps);
 void PPU_writeVRAMhigh(u8 val, u16 adr);
 void PPU_writeVRAMlow(u8 val, u16 adr);
 u16 PPU_readVRAM(u16 adr);
 void PPU_drawFrame();
-void PPU_setTitle(string filename);
+void PPU_setTitle(std::string filename);
 u16 PPU_readCGRAM(u8 adr);
 void PPU_writeCGRAM(u8 val, u8 adr);
 void PPU_reset();
