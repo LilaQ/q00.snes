@@ -20,7 +20,7 @@ u16 VRAM[0x8000];	//	64 kbytes (16bit * 0x8000 [ 32768 ] )
 u16 CGRAM[0x100];	//	512 bytes (16bit * 0x100 [ 256 ] ) 
 u8 CGRAM_Lsb;
 bool CGRAM_Flipflop = false;
-const int FB_SIZE = 256 * 256 * 4;
+const int FB_SIZE = 256 * 256;
 SDL_Renderer* renderer;
 SDL_Window* window;
 u16 RENDER_X = 0, RENDER_Y = 0;
@@ -31,12 +31,12 @@ SDL_Texture* TEXTURE[4];
 SDL_Texture* BACKDROP_TEX;
 
 //	buffers
-u16 MAIN_BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4 - Main Screen
-u16 SUB_BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4 - Sub Screen
-u16 MAIN_BACKDROP[FB_SIZE];
-u16 SUB_BACKDROP[FB_SIZE];
-u16 DEBUG[FB_SIZE];
-u16 framebuffer[FB_SIZE];
+u32 MAIN_BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4 - Main Screen
+u32 SUB_BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4 - Sub Screen
+u32 MAIN_BACKDROP[FB_SIZE];
+u32 SUB_BACKDROP[FB_SIZE];
+u32 DEBUG[FB_SIZE * 4];			//	Debug window can display up to 4 screens (4 * usual size)
+u32 framebuffer[FB_SIZE];
 
 //	BG & SubScreen Enabled Status
 bool BG_ENABLED[5] = { false, false, false, false, false };
@@ -59,6 +59,17 @@ u16 BG_BASE[4] = { 0, 0, 0, 0 };
 u8 BG_TILES_H[4] = { 32, 32, 32, 32 };
 u8 BG_TILES_V[4] = { 32, 32, 32, 32 };
 
+//	BG Palette Offset (really only necessary for Mode 0 for BG2 BG3 BG4)
+const u8 BG_PALETTE_OFFSET[][4] = {
+	{0, 0x20, 0x40, 0x60},
+	{0, 0, 0, 0},
+	{0, 0, 0, 0},
+	{0, 0, 0, 0},
+	{0, 0, 0, 0},
+	{0, 0, 0, 0},
+	{0, 0, 0, 0}
+};
+
 //	Mosaic
 bool MOSAIC_ENABLED[4] = { false, false, false, false };
 u8 MOSAIC_SIZE = 0;
@@ -76,27 +87,31 @@ bool COLOR_MATH_REG_A_DIRECT_COLOR = false;				//	0 - Use Palette, 1 - Direct Co
 bool COLOR_MATH_REG_B_HALF_RESULT = false;				//	0 - Don't, 1 - divide result by 2
 bool COLOR_MATH_REG_B_ENABLE_BACKDROP = false;			//	0 - Off, 1 - On
 
+const u8 FIVEBIT_TO_EIGHTBIT_LUT[0x20] = { 0, 8, 16, 24, 32, 41, 49, 57, 65, 74, 82, 90, 98, 106, 115, 123, 131, 139, 148, 156, 164, 172, 180, 189, 197, 205, 213, 222, 230, 238, 246, 255 };
+
 void PPU_init(std::string filename) {
 
 	/*
 		MAIN WINDOW
 	*/
-
-	//	init and create window and renderer
 	SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
 	SDL_Init(SDL_INIT_VIDEO);
+	/*window = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, 256, 239, SDL_WINDOW_SHOWN);
+	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);*/
+	SDL_CreateWindowAndRenderer(256, 239, SDL_RENDERER_ACCELERATED, &window, &renderer);
+	SDL_SetWindowSize(window, 256 * 2, 239 * 2);
+	//	init and create window and renderer
 	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
-	SDL_CreateWindowAndRenderer(256, 239, 0, &window, &renderer);
-	SDL_SetWindowSize(window, 512, 478);
+	//SDL_SetWindowSize(window, 512, 478);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
 	SDL_SetWindowResizable(window, SDL_TRUE);
 
 	//	for fast rendering, create a texture
-	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
@@ -138,11 +153,11 @@ void PPU_reset() {
 	memset(MAIN_BGS[2], 0, sizeof(MAIN_BGS[2]));
 	memset(MAIN_BGS[3], 0, sizeof(MAIN_BGS[3]));
 	memset(MAIN_BACKDROP, 0, sizeof(MAIN_BACKDROP));
-	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
 	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
@@ -151,7 +166,7 @@ void PPU_reset() {
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 }
 
-void processMosaic(u16 *BG) {
+void processMosaic(u32 *BG) {
 	for (u16 x = 0; x < 256; x += MOSAIC_SIZE) {
 		for (u16 y = 0; y < 256; y += MOSAIC_SIZE) {
 			u16 pos = y * 256 + x;
@@ -173,11 +188,11 @@ void PPU_drawFrame() {
 			processMosaic(MAIN_BGS[i]);
 
 	//	Prep Textures
-	SDL_UpdateTexture(TEXTURE[0], NULL, MAIN_BGS[0], 256 * sizeof(u16));
-	SDL_UpdateTexture(TEXTURE[1], NULL, MAIN_BGS[1], 256 * sizeof(u16));
-	SDL_UpdateTexture(TEXTURE[2], NULL, MAIN_BGS[2], 256 * sizeof(u16));
-	SDL_UpdateTexture(TEXTURE[3], NULL, MAIN_BGS[3], 256 * sizeof(u16));
-	SDL_UpdateTexture(BACKDROP_TEX, NULL, MAIN_BACKDROP, 256 * sizeof(u16));
+	SDL_UpdateTexture(TEXTURE[0], NULL, MAIN_BGS[0], 256 * sizeof(u32));
+	SDL_UpdateTexture(TEXTURE[1], NULL, MAIN_BGS[1], 256 * sizeof(u32));
+	SDL_UpdateTexture(TEXTURE[2], NULL, MAIN_BGS[2], 256 * sizeof(u32));
+	SDL_UpdateTexture(TEXTURE[3], NULL, MAIN_BGS[3], 256 * sizeof(u32));
+	SDL_UpdateTexture(BACKDROP_TEX, NULL, MAIN_BACKDROP, 256 * sizeof(u32));
 
 	//	Backdrop
 	SDL_RenderCopy(renderer, BACKDROP_TEX, NULL, NULL);
@@ -276,21 +291,25 @@ void PPU_drawFrame() {
 	SDL_RenderPresent(renderer);
 	
 }
-
-void writeToFB(u16 *BG, u16 x, u16 y, u16 width, u16 v) {
-	BG[y * width + x] = v;
+const u8 ALPHA_LUT[2] = {0, 255};
+void writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u16 v) {
+	const u8 r = FIVEBIT_TO_EIGHTBIT_LUT[(v >> 1) & 0b11111];
+	const u8 g = FIVEBIT_TO_EIGHTBIT_LUT[(v >> 6) & 0b11111];
+	const u8 b = FIVEBIT_TO_EIGHTBIT_LUT[(v >> 11) & 0b11111];
+	const u8 a = ALPHA_LUT[(v & 1)];
+	BG[y * width + x] = r | (g << 8) | (b << 16) | (a << 24);
 }
 
-u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp) {
+u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
 	if (id == 0) return 0x00000000;	//	id 0 = transparency
-	return (u16)(CGRAM[(id + palette * (bpp * bpp))] * MASTER_BRIGHTNESS) << 1 | 1;
+	return (u16)(CGRAM[(id + palette * (bpp * bpp)) + palette_offset] * MASTER_BRIGHTNESS) << 1 | 1;
 }
 
-void renderBackdrop(u16 srcx, u16 srcy, u16* BG) {
+void renderBackdrop(u16 srcx, u16 srcy, u32* BG) {
 	writeToFB(BG, srcx, srcy, 256, ((u16)(CGRAM[0x00] * MASTER_BRIGHTNESS) << 1 | 1));
 };
 
-void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
+void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -314,10 +333,10 @@ void renderBGat2BPP(u16 scrx, u16 scry, u16 *BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u8 b_hi = VRAM[tile_address] >> 8;
 	const u8 b_lo = VRAM[tile_address] & 0xff;
 	const u8 v = ((b_lo >> h_shift) & 1) + (2 * ((b_hi >> h_shift) & 1));
-	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 2));
+	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset));
 }
 
-void renderBGat4BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
+void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -346,16 +365,16 @@ void renderBGat4BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(2 * ((b_2 >> h_shift) & 1)) +
 					(4 * ((b_3 >> h_shift) & 1)) +
 					(8 * ((b_4 >> h_shift) & 1));
-	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 4));
+	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset));
 }
 
-void renderBGat8BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width) {
+void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
-	const u16 offset =
+	const u16 offset = 
 		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
 		((scrx % 256) / 8) +
 		(scrx / 256) * 0x400 +
@@ -387,7 +406,7 @@ void renderBGat8BPP(u16 scrx, u16 scry, u16* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(32 *	((b_6 >> h_shift) & 1)) +
 					(64 *	((b_7 >> h_shift) & 1)) +
 					(128 *	((b_8 >> h_shift) & 1));
-	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 8));
+	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset));
 }
 
 void PPU_render() {
@@ -398,14 +417,12 @@ void PPU_render() {
 		if (BG_ENABLED[bg_id] || SUB_ENABLED[bg_id]) {								//	Check if the BG (1/2/3/4) is enabled
 			u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
 			if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
-				
-
 				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, BG_TILES_H[bg_id] * 8);
+					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, 256, BG_PALETTE_OFFSET[bg_mode][bg_id]);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, BG_TILES_H[bg_id] * 8);
+					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, 256, BG_PALETTE_OFFSET[bg_mode][bg_id]);
 				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, BG_TILES_H[bg_id] * 8);
+					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, 256, BG_PALETTE_OFFSET[bg_mode][bg_id]);
 			}
 		}
 	}
@@ -425,7 +442,7 @@ void PPU_step(u8 steps) {
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::set(Interrupts::NMI);
-				printf("VBlank %d\n", vbl++);
+				printf("VBlank %d\n", ++vbl);
 			}
 			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
 				RENDER_Y = 0;
@@ -482,10 +499,10 @@ u16 PPU_readCGRAM(u8 adr) {
 void PPU_writeBGScreenSizeAndBase(u8 bg_id, u8 val) {
 	BG_BASE[bg_id] = ((val >> 2) << 10) & 0x7fff;
 	switch (val & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
-	case 0b00: BG_TILES_V[bg_id] = 32; BG_TILES_H[bg_id] = 32; break;
-	case 0b01: BG_TILES_V[bg_id] = 64; BG_TILES_H[bg_id] = 32; break;
-	case 0b10: BG_TILES_V[bg_id] = 32; BG_TILES_H[bg_id] = 64; break;
-	case 0b11: BG_TILES_V[bg_id] = 64; BG_TILES_H[bg_id] = 64; break;
+	case 0b00: BG_TILES_H[bg_id] = 32; BG_TILES_V[bg_id] = 32; break;
+	case 0b01: BG_TILES_H[bg_id] = 64; BG_TILES_V[bg_id] = 32; break;
+	case 0b10: BG_TILES_H[bg_id] = 32; BG_TILES_V[bg_id] = 64; break;
+	case 0b11: BG_TILES_H[bg_id] = 64; BG_TILES_V[bg_id] = 64; break;
 	}
 }
 
@@ -573,44 +590,27 @@ bool PPU_getVBlankNMIFlag() {
 
 //		DEBUG
 
-void debug_drawBG(u8 id) {
+void debug_drawBG(u8 bg_id) {
 
 	//	find out size
 	memset(DEBUG, 0, sizeof(DEBUG));
 	SDL_Window* tWindows;
 	SDL_Renderer* tRenderer;
 	SDL_Texture* tTexture;
-	const u8 tiles_x = 32 + (BUS_readFromMem(0x2107 + id) & 1) * 32;
-	const u8 tiles_y = 32 + ((BUS_readFromMem(0x2107 + id) >> 1) & 1) * 32;
-	u16 tex_w = (8 * tiles_x);
-	u16 tex_h = (8 * tiles_y);
+	u16 tex_w = (8 * BG_TILES_H[bg_id]);
+	u16 tex_h = (8 * BG_TILES_V[bg_id]);
 
 	//	render full size
-	u16 bg_base;
-	u8 bg_size_w, bg_size_h;
-	u16 tile_base[4] = {
-		(u16)((BUS_readFromMem(0x210b) & 0xf) * 0x1000),
-		(u16)((BUS_readFromMem(0x210b) >> 4) * 0x1000),
-		(u16)((BUS_readFromMem(0x210c) & 0xf) * 0x1000),
-		(u16)((BUS_readFromMem(0x210c) >> 4) * 0x1000)
-	};
 	u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
-	if (PPU_BG_MODES[bg_mode][id] != PPU_COLOR_DEPTH::CD_DISABLED) {
-		bg_base = ((BUS_readFromMem(0x2107 + id) >> 2) << 10) & 0x7fff;	//	VRAM start address for rendering
-		switch (BUS_readFromMem(0x2107 + id) & 0b11) {					//	0 - 32x32, 1 - 64x32, 2 - 32x64, 3 - 64x64
-		case 0b00: bg_size_w = 32; bg_size_h = 32; break;
-		case 0b01: bg_size_w = 64; bg_size_h = 32; break;
-		case 0b10: bg_size_w = 32; bg_size_h = 64; break;
-		case 0b11: bg_size_w = 64; bg_size_h = 64; break;
-		}
+	if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 		for (u16 y = 0; y < tex_h; y++) {
 			for (u16 x = 0; x < tex_w; x++) {
-				if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, tile_base[id], 0, 0, bg_size_w * 8);
-				else if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, tile_base[id], 0, 0, bg_size_w * 8);
-				else if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(x, y, DEBUG, bg_base, bg_size_w, bg_size_h, tile_base[id], 0, 0, bg_size_w * 8);
+				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
+					renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[bg_mode][bg_id]);
+				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
+					renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[bg_mode][bg_id]);
+				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
+					renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[bg_mode][bg_id]);
 			}
 		}
 	}
@@ -621,22 +621,22 @@ void debug_drawBG(u8 id) {
 	SDL_SetWindowSize(tWindows, tex_w * 2, tex_h * 2);
 
 	//	create texture
-	tTexture = SDL_CreateTexture(tRenderer, SDL_PIXELFORMAT_BGRA5551, SDL_TEXTUREACCESS_STREAMING, tex_w, tex_h);
+	tTexture = SDL_CreateTexture(tRenderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, tex_w, tex_h);
 
 	//	window decorations
 	char title[70];
 	u8 bpp = 0;
-	if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
+	if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
 		bpp = 2;
-	else if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
+	else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
 		bpp = 4;
-	else if (PPU_BG_MODES[bg_mode][id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
+	else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
 		bpp = 8;
-	snprintf(title, sizeof title, "[ BG%d | %dx%d | %dBPP | tilebase 0x%04x | palettebase 0x%04x ]", id+1, tex_w, tex_h, bpp, tile_base[id], (0x20 * id) );
+	snprintf(title, sizeof title, "[ BG%d | %dx%d | %dBPP | base 0x%04x | tilebase 0x%04x ]", bg_id+1, tex_w, tex_h, bpp, BG_BASE[bg_id], BG_TILEBASE[bg_id] );
 	SDL_SetWindowTitle(tWindows, title);
 
 	//	draw texture to renderer
-	SDL_UpdateTexture(tTexture, NULL, DEBUG, tex_w * sizeof(u16));
+	SDL_UpdateTexture(tTexture, NULL, DEBUG, tex_w * sizeof(u32));
 	SDL_RenderCopy(tRenderer, tTexture, NULL, NULL);
 	SDL_RenderPresent(tRenderer);
 
