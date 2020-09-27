@@ -274,12 +274,12 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 			PPU_writeBGScreenSizeAndBase(3, val);
 			break;
 		case 0x210b:				//	PPU - BG12NBA - BG1/BG2 Tilebase
-			PPU_writeBGTilebase(0, val & 0xf);
-			PPU_writeBGTilebase(1, val >> 4);
+			PPU_writeBGTilebase(0, (val & 0xf));
+			PPU_writeBGTilebase(1, (val >> 4));
 			break;
 		case 0x210c:				//	PPU - BG34BA - BG3/BG4 Tilebase
-			PPU_writeBGTilebase(2, val & 0xf);
-			PPU_writeBGTilebase(3, val >> 4);
+			PPU_writeBGTilebase(2, (val & 0xf));
+			PPU_writeBGTilebase(3, (val >> 4));
 			break;
 		case 0x210d:				//	BG1 Horizontal Scroll
 			PPU_writeBGScrollX(0, val);

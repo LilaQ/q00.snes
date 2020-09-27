@@ -67,6 +67,7 @@ const u8 BG_PALETTE_OFFSET[][4] = {
 	{0, 0, 0, 0},
 	{0, 0, 0, 0},
 	{0, 0, 0, 0},
+	{0, 0, 0, 0},
 	{0, 0, 0, 0}
 };
 
@@ -442,7 +443,7 @@ void PPU_step(u8 steps) {
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::set(Interrupts::NMI);
-				printf("VBlank %d\n", ++vbl);
+				//printf("VBlank %d\n", ++vbl);
 			}
 			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
 				RENDER_Y = 0;
@@ -489,7 +490,6 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 		BUS_writeToMem(BUS_readFromMem(0x2121) + 1, 0x2121);
 	}
 	//printf("Write CGRAM: %x\n", val);
-	
 }
 
 u16 PPU_readCGRAM(u8 adr) {
@@ -507,7 +507,7 @@ void PPU_writeBGScreenSizeAndBase(u8 bg_id, u8 val) {
 }
 
 void PPU_writeBGTilebase(u8 bg_id, u8 val) {
-	BG_TILEBASE[bg_id] = val * 0x1000;
+	BG_TILEBASE[bg_id] = (val * 0x2000) % 0x10000 / 2;
 }
 
 void PPU_writeBGScrollX(u8 bg_id, u8 val) {
