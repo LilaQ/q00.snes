@@ -22,26 +22,23 @@ u8 CGRAM_Lsb;
 bool CGRAM_Flipflop = false;
 const int FB_SIZE = 256 * 256;
 SDL_Renderer* renderer;
-SDL_Window* window;
+SDL_Window* sdl_window;
 u16 RENDER_X = 0, RENDER_Y = 0;
 bool VBlankNMIFlag = 0;
 
 //	textures
-SDL_Texture* TEXTURE[4];
-SDL_Texture* BACKDROP_TEX;
+SDL_Texture* FULL_CALC_TEX;
 
 //	buffers
-u32 MAIN_BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4 - Main Screen
-u32 SUB_BGS[4][FB_SIZE];		//	BG1, BG2, BG3, BG4 - Sub Screen
-u32 MAIN_BACKDROP[FB_SIZE];
-u32 SUB_BACKDROP[FB_SIZE];
 u32 DEBUG[FB_SIZE * 4];			//	Debug window can display up to 4 screens (4 * usual size)
-u32 framebuffer[FB_SIZE];
+u32 FULL_CALC[FB_SIZE];
+
+//	BG3 Priority flag
+bool BG3_PRIORITY = false;
 
 //	BG & SubScreen Enabled Status
-bool BG_ENABLED[5] = { false, false, false, false, false };
-bool SUB_ENABLED[5] = { false, false, false, false, false };
-bool SUB_COLMATH_ENABLED[5] = { false, false, false, false, false };
+PPU_COLOR_DEPTH *BG_MODE = new PPU_COLOR_DEPTH[4]();
+u8 BG_MODE_ID = 0;
 
 //	BG Scrolling
 bool BGSCROLLX_Flipflop[4] = { false, false, false, false };
@@ -50,14 +47,14 @@ u16 BGSCROLLX[4] = { 0, 0, 0, 0 };
 u16 BGSCROLLY[4] = { 0, 0, 0, 0 };
 
 //	BG Tilebase
-u16 BG_TILEBASE[4] = { 0, 0, 0, 0 };
+u16 BG_TILEBASE[5] = { 0, 0, 0, 0 };
 
 //	BG Screen base
-u16 BG_BASE[4] = { 0, 0, 0, 0 };
+u16 BG_BASE[5] = { 0, 0, 0, 0 };
 
 //	BG Tilesizes
-u8 BG_TILES_H[4] = { 32, 32, 32, 32 };
-u8 BG_TILES_V[4] = { 32, 32, 32, 32 };
+u8 BG_TILES_H[5] = { 32, 32, 32, 32 };
+u8 BG_TILES_V[5] = { 32, 32, 32, 32 };
 
 //	BG Palette Offset (really only necessary for Mode 0 for BG2 BG3 BG4)
 const u8 BG_PALETTE_OFFSET[][4] = {
@@ -71,6 +68,11 @@ const u8 BG_PALETTE_OFFSET[][4] = {
 	{0, 0, 0, 0}
 };
 
+//	Window
+COLOR_MATH window;
+PIXEL backdrop_pixel;
+PIXEL fixedcolor_pixel;
+
 //	Mosaic
 bool MOSAIC_ENABLED[4] = { false, false, false, false };
 u8 MOSAIC_SIZE = 0;
@@ -79,16 +81,11 @@ u8 MOSAIC_SIZE = 0;
 double MASTER_BRIGHTNESS = 0;
 bool FORCED_BLANKING = false;
 
-//	Color Math (REG B)
-SDL_BlendMode COLOR_MATH_REG_B_ADD_SUB = SDL_BLENDMODE_ADD;
-u8 COLOR_MATH_REG_A_FORCE_MAIN_SCREEN_BLACK = 0;		//	0 - Never, 1 - NotMathWindow, 2 - MathWindow, 3 - Always
-u8 COLOR_MATH_REG_A_COLOR_MATH_ENABLE = 0;				//	0 - Always, 1 - MathWindow, 2 - NotMathWindow, 3 - Never
-bool COLOR_MATH_REG_A_ENABLE_SUBSCREENS = false;		//	0 - No/Backdrop only, 1 - Yes/Backdrop+BG+OBJ
-bool COLOR_MATH_REG_A_DIRECT_COLOR = false;				//	0 - Use Palette, 1 - Direct Color
-bool COLOR_MATH_REG_B_HALF_RESULT = false;				//	0 - Don't, 1 - divide result by 2
-bool COLOR_MATH_REG_B_ENABLE_BACKDROP = false;			//	0 - Off, 1 - On
-
 const u8 FIVEBIT_TO_EIGHTBIT_LUT[0x20] = { 0, 8, 16, 24, 32, 41, 49, 57, 65, 74, 82, 90, 98, 106, 115, 123, 131, 139, 148, 156, 164, 172, 180, 189, 197, 205, 213, 222, 230, 238, 246, 255 };
+
+PIXEL src_pixel_bg1, src_pixel_bg2, src_pixel_bg3, src_pixel_bg4, src_pixel_obj;
+PIXEL main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj;
+PIXEL sub_pixel_bg1, sub_pixel_bg2, sub_pixel_bg3, sub_pixel_bg4, sub_pixel_obj;
 
 void PPU_init(std::string filename) {
 
@@ -99,35 +96,42 @@ void PPU_init(std::string filename) {
 	SDL_Init(SDL_INIT_VIDEO);
 	/*window = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, 256, 239, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);*/
-	SDL_CreateWindowAndRenderer(256, 239, SDL_RENDERER_ACCELERATED, &window, &renderer);
-	SDL_SetWindowSize(window, 256 * 2, 239 * 2);
+	SDL_CreateWindowAndRenderer(256, 239, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC, &sdl_window, &renderer);
+	SDL_SetWindowSize(sdl_window, 256 * 2, 239 * 2);
 	//	init and create window and renderer
 	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
 	//SDL_SetWindowSize(window, 512, 478);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
-	SDL_SetWindowResizable(window, SDL_TRUE);
+	SDL_SetWindowResizable(sdl_window, SDL_TRUE);
 
 	//	for fast rendering, create a texture
-	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
-	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-	initWindow(window, filename);
+	FULL_CALC_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
+	initWindow(sdl_window, filename);
 
 }
 
 void PPU_setTitle(std::string filename) {
-	SDL_SetWindowTitle(window, filename.c_str());
+	SDL_SetWindowTitle(sdl_window, filename.c_str());
 }
 
 void PPU_reset() {
+	window.winlog[0] = _or;
+	window.winlog[1] = _or;
+	window.winlog[2] = _or;
+	window.winlog[3] = _or;
+	window.winlog[4] = _or;
+	window.winlog[5] = _or;
+	src_pixel_bg1.id = 0;
+	src_pixel_bg2.id = 1;
+	src_pixel_bg3.id = 2;
+	src_pixel_bg4.id = 3;
+	src_pixel_obj.id = 4;
+	backdrop_pixel.id = 5;
+	fixedcolor_pixel.id = 5;
+	window.mainSW = _never;
+	window.subSW = _always;
+	backdrop_pixel.color = 0x0001;
+	fixedcolor_pixel.color = 0x0001;
 	BGSCROLLX_Flipflop[0] = false;
 	BGSCROLLX_Flipflop[1] = false;
 	BGSCROLLX_Flipflop[2] = false;
@@ -144,27 +148,14 @@ void PPU_reset() {
 	BGSCROLLY[1] = 0;
 	BGSCROLLY[2] = 0;
 	BGSCROLLY[3] = 0;
+	BG3_PRIORITY = 0;
+	BG_MODE_ID = 0;
 	RENDER_X = 0, RENDER_Y = 0;
 	VBlankNMIFlag = 0;
 	CGRAM_Lsb = 0;
 	CGRAM_Flipflop = false;
-	memset(framebuffer, 0, sizeof(framebuffer));
-	memset(MAIN_BGS[0], 0, sizeof(MAIN_BGS[0]));
-	memset(MAIN_BGS[1], 0, sizeof(MAIN_BGS[1]));
-	memset(MAIN_BGS[2], 0, sizeof(MAIN_BGS[2]));
-	memset(MAIN_BGS[3], 0, sizeof(MAIN_BGS[3]));
-	memset(MAIN_BACKDROP, 0, sizeof(MAIN_BACKDROP));
-	TEXTURE[0] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[1] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[2] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	TEXTURE[3] = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	BACKDROP_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
-	SDL_SetTextureBlendMode(TEXTURE[0], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(TEXTURE[1], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(TEXTURE[2], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(TEXTURE[3], SDL_BLENDMODE_BLEND);
-	SDL_SetTextureBlendMode(BACKDROP_TEX, SDL_BLENDMODE_BLEND);
-	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+	memset(FULL_CALC, 0, sizeof(FULL_CALC));
+	FULL_CALC_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 }
 
 void processMosaic(u32 *BG) {
@@ -184,111 +175,12 @@ void processMosaic(u32 *BG) {
 void PPU_drawFrame() {
 
 	//	apply mosaic if set
-	for (u8 i = 0; i < 4; i++)
+	/*for (u8 i = 0; i < 4; i++)
 		if (MOSAIC_ENABLED[i])
-			processMosaic(MAIN_BGS[i]);
+			processMosaic(MAIN_BGS[i]);*/
 
-	//	Prep Textures
-	SDL_UpdateTexture(TEXTURE[0], NULL, MAIN_BGS[0], 256 * sizeof(u32));
-	SDL_UpdateTexture(TEXTURE[1], NULL, MAIN_BGS[1], 256 * sizeof(u32));
-	SDL_UpdateTexture(TEXTURE[2], NULL, MAIN_BGS[2], 256 * sizeof(u32));
-	SDL_UpdateTexture(TEXTURE[3], NULL, MAIN_BGS[3], 256 * sizeof(u32));
-	SDL_UpdateTexture(BACKDROP_TEX, NULL, MAIN_BACKDROP, 256 * sizeof(u32));
-
-	//	Backdrop
-	SDL_RenderCopy(renderer, BACKDROP_TEX, NULL, NULL);
-
-
-	//	BGs
-	if (BG_ENABLED[3]) {
-		SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
-		//	SubScreens
-		if (COLOR_MATH_REG_A_COLOR_MATH_ENABLE == 0) {	//	TODO - This still has modes "MathWindow" (1) and "NotMathWin" (2) and "Never" (3)
-			if (SUB_ENABLED[3] && SUB_COLMATH_ENABLED[3]) {
-				SDL_SetTextureBlendMode(TEXTURE[3], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
-			}
-			if (SUB_ENABLED[2] && SUB_COLMATH_ENABLED[3]) {
-				SDL_SetTextureBlendMode(TEXTURE[2], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-			}
-			if (SUB_ENABLED[1] && SUB_COLMATH_ENABLED[3]) {
-				SDL_SetTextureBlendMode(TEXTURE[1], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-			}
-			if (SUB_ENABLED[0] && SUB_COLMATH_ENABLED[3]) {
-				SDL_SetTextureBlendMode(TEXTURE[0], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-			}
-		}
-	}
-	if (BG_ENABLED[2]) {
-		SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-		//	SubScreens
-		if (COLOR_MATH_REG_A_COLOR_MATH_ENABLE == 0) {	//	TODO - This still has modes "MathWindow" (1) and "NotMathWin" (2) and "Never" (3)
-			if (SUB_ENABLED[3] && SUB_COLMATH_ENABLED[2]) {
-				SDL_SetTextureBlendMode(TEXTURE[3], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
-			}
-			if (SUB_ENABLED[2] && SUB_COLMATH_ENABLED[2]) {
-				SDL_SetTextureBlendMode(TEXTURE[2], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-			}
-			if (SUB_ENABLED[1] && SUB_COLMATH_ENABLED[2]) {
-				SDL_SetTextureBlendMode(TEXTURE[1], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-			}
-			if (SUB_ENABLED[0] && SUB_COLMATH_ENABLED[2]) {
-				SDL_SetTextureBlendMode(TEXTURE[0], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-			}
-		}
-	}
-	if (BG_ENABLED[1]) {
-		SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-		//	SubScreens
-		if (COLOR_MATH_REG_A_COLOR_MATH_ENABLE == 0) {	//	TODO - This still has modes "MathWindow" (1) and "NotMathWin" (2) and "Never" (3)
-			if (SUB_ENABLED[3] && SUB_COLMATH_ENABLED[1]) {
-				SDL_SetTextureBlendMode(TEXTURE[3], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
-			}
-			if (SUB_ENABLED[2] && SUB_COLMATH_ENABLED[1]) {
-				SDL_SetTextureBlendMode(TEXTURE[2], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-			}
-			if (SUB_ENABLED[1] && SUB_COLMATH_ENABLED[1]) {
-				SDL_SetTextureBlendMode(TEXTURE[1], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-			}
-			if (SUB_ENABLED[0] && SUB_COLMATH_ENABLED[1]) {
-				SDL_SetTextureBlendMode(TEXTURE[0], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-			}
-		}
-	}
-	if (BG_ENABLED[0]) {
-		SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-		//	SubScreens
-		if (COLOR_MATH_REG_A_COLOR_MATH_ENABLE == 0) {	//	TODO - This still has modes "MathWindow" (1) and "NotMathWin" (2) and "Never" (3)
-			if (SUB_ENABLED[3] && SUB_COLMATH_ENABLED[0]) {
-				SDL_SetTextureBlendMode(TEXTURE[3], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[3], NULL, NULL);
-			}
-			if (SUB_ENABLED[2] && SUB_COLMATH_ENABLED[0]) {
-				SDL_SetTextureBlendMode(TEXTURE[2], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[2], NULL, NULL);
-			}
-			if (SUB_ENABLED[1] && SUB_COLMATH_ENABLED[0]) {
-				SDL_SetTextureBlendMode(TEXTURE[1], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[1], NULL, NULL);
-			}
-			if (SUB_ENABLED[0] && SUB_COLMATH_ENABLED[0]) {
-				SDL_SetTextureBlendMode(TEXTURE[0], COLOR_MATH_REG_B_ADD_SUB);
-				SDL_RenderCopy(renderer, TEXTURE[0], NULL, NULL);
-			}
-		}
-	}
-
+	SDL_UpdateTexture(FULL_CALC_TEX, NULL, FULL_CALC, 1024);
+	SDL_RenderCopy(renderer, FULL_CALC_TEX, NULL, NULL);
 	SDL_RenderPresent(renderer);
 	
 }
@@ -301,7 +193,7 @@ void writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u16 v) 
 	BG[y * width + x] = r | (g << 8) | (b << 16) | (a << 24);
 }
 
-u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
+inline u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
 	if (id == 0) return 0x00000000;	//	id 0 = transparency
 	return (u16)(CGRAM[(id + palette * (bpp * bpp)) + palette_offset] * MASTER_BRIGHTNESS) << 1 | 1;
 }
@@ -410,31 +302,101 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset));
 }
 
-void PPU_render() {
-	u8 bg_palette_base = 0;
 
-	//	iterate all BGs
-	for (u8 bg_id = 0; bg_id < 4; bg_id++) {
-		if (BG_ENABLED[bg_id] || SUB_ENABLED[bg_id]) {								//	Check if the BG (1/2/3/4) is enabled
-			u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
-			if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
-				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, 256, BG_PALETTE_OFFSET[bg_mode][bg_id]);
-				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, 256, BG_PALETTE_OFFSET[bg_mode][bg_id]);
-				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(RENDER_X, RENDER_Y, MAIN_BGS[bg_id], BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], BGSCROLLX[bg_id], BGSCROLLY[bg_id] + 1, 256, BG_PALETTE_OFFSET[bg_mode][bg_id]);
-			}
-		}
-	}
-	renderBackdrop(RENDER_X, RENDER_Y, MAIN_BACKDROP);
+void getPixelEXTBG(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel) {
+}
+void getPixelOPT(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel) {
+}
+void getPixelDISABLED(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel) {
+}
+void getPixel2BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel) {
+	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
+	const u16 orgy = scry;
+	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
+	scrx = (scrx + scroll_x) % (8 * bg_size_w);
+
+	const u16 offset =
+		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		((scrx % 256) / 8) +
+		(scrx / 256) * 0x400 +
+		(bg_size_w / 64) * ((scry / 256) * 0x800);
+	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
+	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry % 8;
+	const u8 j = scrx % 8;
+	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
+	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+	const u16 tile_address = tile_id * 8 + tile_base + v_shift;	
+	const u8 v = (((VRAM[tile_address] >> 8) >> h_shift) & 1) + (2 * (((VRAM[tile_address] & 0xff) >> h_shift) & 1));
+	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset);
+	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
+}
+void getPixel8BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL &pixel) {
+	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
+	const u16 orgy = scry;
+	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
+	scrx = (scrx + scroll_x) % (8 * bg_size_w);
+
+	const u16 offset =
+		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		((scrx % 256) / 8) +
+		(scrx / 256) * 0x400 +
+		(bg_size_w / 64) * ((scry / 256) * 0x800);
+	const u16 tile_base_adr = bg_base + offset;
+	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
+	const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry % 8;
+	const u8 j = scrx % 8;
+	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
+	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+	const u16 tile_address = tile_id * 32 + tile_base + v_shift;
+	const u16 v = (((VRAM[tile_address] & 0xff)			>> h_shift) & 1) +
+		(2		* (((VRAM[tile_address] >> 8)			>> h_shift) & 1)) +
+		(4		* (((VRAM[tile_address + 8] & 0xff)		>> h_shift) & 1)) +
+		(8		* (((VRAM[tile_address + 8] >> 8)		>> h_shift) & 1)) +
+		(16		* (((VRAM[tile_address + 16] & 0xff)	>> h_shift) & 1)) +
+		(32		* (((VRAM[tile_address + 16] >> 8)		>> h_shift) & 1)) +
+		(64		* (((VRAM[tile_address + 24] & 0xff)	>> h_shift) & 1)) +
+		(128	* (((VRAM[tile_address + 24] >> 8)		>> h_shift) & 1));
+	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset);
+	pixel.priority = (VRAM[tile_base_adr] >> 13) & 1;				//	0 - lower, 1 - higher
+}
+void getPixel4BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL &pixel) {
+	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
+	const u16 orgy = scry;
+	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
+	scrx = (scrx + scroll_x) % (8 * bg_size_w);
+
+	const u16 offset =
+		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		((scrx % 256) / 8) +
+		(scrx / 256) * 0x400 +
+		(bg_size_w / 64) * ((scry / 256) * 0x800);
+	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
+	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u8 i = scry % 8;
+	const u8 j = scrx % 8;
+	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
+	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+	const u16 tile_address = tile_id * 16 + tile_base + v_shift;		//	this doesn't have tile_base like 8bpp, fix?
+	const u16 v =	(((VRAM[tile_address] & 0xff)		>> h_shift) & 1) +
+		(2 *		(((VRAM[tile_address] >> 8)			>> h_shift) & 1)) +
+		(4 *		(((VRAM[tile_address + 8] & 0xff)	>> h_shift) & 1)) +
+		(8 *		(((VRAM[tile_address + 8] >> 8)		>> h_shift) & 1));
+	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 }
 
 u16 vbl = 0;
 void PPU_step(u8 steps) {
 
 	while (steps--) {
-
 		if (++RENDER_X == 256) {					//	H-Blank starts
 			BUS_startHDMA();
 		}		
@@ -443,7 +405,7 @@ void PPU_step(u8 steps) {
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::set(Interrupts::NMI);
-				//printf("VBlank %d\n", ++vbl);
+				printf("VBlank %d\n", ++vbl);
 			}
 			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
 				RENDER_Y = 0;
@@ -453,11 +415,109 @@ void PPU_step(u8 steps) {
 			}
 		}
 		if (RENDER_X < 256 && RENDER_Y < 241) {	//	Only render current pixel(s) if we're not in any blanking period
-			PPU_render();
+			//PPU_render();
+
+			const bool in_W1 = window.W1_LEFT <= RENDER_X && RENDER_X <= window.W1_RIGHT;
+			const bool in_W2 = window.W2_LEFT <= RENDER_X && RENDER_X <= window.W2_RIGHT;
+
+			const bool BG1Mux = window.winlog[0]((in_W1 && window.w1en[0] ^ window.w1IO[0]), (in_W2 && window.w2en[0] ^ window.w2IO[0]));
+			const bool BG2Mux = window.winlog[1]((in_W1 && window.w1en[1] ^ window.w1IO[1]), (in_W2 && window.w2en[1] ^ window.w2IO[1]));
+			const bool BG3Mux = window.winlog[2]((in_W1 && window.w1en[2] ^ window.w1IO[2]), (in_W2 && window.w2en[2] ^ window.w2IO[2]));
+			const bool BG4Mux = window.winlog[3]((in_W1 && window.w1en[3] ^ window.w1IO[3]), (in_W2 && window.w2en[3] ^ window.w2IO[3]));
+			const bool OBJMux = window.winlog[4]((in_W1 && window.w1en[4] ^ window.w1IO[4]), (in_W2 && window.w2en[4] ^ window.w2IO[4]));
+			const bool SELMux = window.winlog[5]((in_W1 && window.w1en[5] ^ window.w1IO[5]), (in_W2 && window.w2en[5] ^ window.w2IO[5]));
+
+			const bool MainWinBG1 = BG1Mux && window.tmw[0];
+			const bool MainWinBG2 = BG2Mux && window.tmw[1];
+			const bool MainWinBG3 = BG3Mux && window.tmw[2];
+			const bool MainWinBG4 = BG4Mux && window.tmw[3];
+			const bool MainWinOBJ = OBJMux && window.tmw[4];
+			const bool SubWinBG1 = BG1Mux && window.tsw[0];
+			const bool SubWinBG2 = BG2Mux && window.tsw[1];
+			const bool SubWinBG3 = BG3Mux && window.tsw[2];
+			const bool SubWinBG4 = BG4Mux && window.tsw[3];
+			const bool SubWinOBJ = OBJMux && window.tsw[4];
+
+			//	get pixel (incl. priority) from current x/y
+			src_pixel_obj.color = 0;
+			PPU_BG_MODES_FUNCTION[BG_MODE_ID][0](RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+			PPU_BG_MODES_FUNCTION[BG_MODE_ID][1](RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+			PPU_BG_MODES_FUNCTION[BG_MODE_ID][2](RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+			PPU_BG_MODES_FUNCTION[BG_MODE_ID][3](RENDER_X, RENDER_Y, BG_BASE[3], BG_TILES_H[3], BG_TILES_V[3], BG_TILEBASE[3], BGSCROLLX[3], BGSCROLLY[3] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][3], src_pixel_bg4);
+			//PPU_BG_MODES_FUNCTION[BG_MODE_ID][4](RENDER_X, RENDER_Y, BG_BASE[4], BG_TILES_H[4], BG_TILES_V[4], BG_TILEBASE[4], BGSCROLLX[4], BGSCROLLY[4] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][4], src_pixel_obj);
+				
+			//	split source pixel to main screen and sub screen
+			main_pixel_bg1 = src_pixel_bg1;
+			main_pixel_bg2 = src_pixel_bg2;
+			main_pixel_bg3 = src_pixel_bg3;
+			main_pixel_bg4 = src_pixel_bg4;
+			main_pixel_obj = src_pixel_obj;
+			sub_pixel_bg1 = src_pixel_bg1;
+			sub_pixel_bg2 = src_pixel_bg2;
+			sub_pixel_bg3 = src_pixel_bg3;
+			sub_pixel_bg4 = src_pixel_bg4;
+			sub_pixel_obj = src_pixel_obj;
+
+			//	if not enabled, make pixel transparent
+			main_pixel_bg1.color &= ~window.tm[0];
+			main_pixel_bg2.color &= ~window.tm[1];
+			main_pixel_bg3.color &= ~window.tm[2];
+			main_pixel_bg4.color &= ~window.tm[3];
+			main_pixel_obj.color &= ~window.tm[4];
+			sub_pixel_bg1.color &= ~window.ts[0];
+			sub_pixel_bg2.color &= ~window.ts[1];
+			sub_pixel_bg3.color &= ~window.ts[2];
+			sub_pixel_bg4.color &= ~window.ts[3];
+			sub_pixel_obj.color &= ~window.ts[4];
+
+			//	pipe the window in, pixel again will become transparent of not enabled at this point
+			main_pixel_bg1.color &= ~MainWinBG1;
+			main_pixel_bg2.color &= ~MainWinBG2;
+			main_pixel_bg3.color &= ~MainWinBG3;
+			main_pixel_bg4.color &= ~MainWinBG4;
+			main_pixel_obj.color &= ~MainWinOBJ;
+			sub_pixel_bg1.color &= ~SubWinBG1;
+			sub_pixel_bg2.color &= ~SubWinBG2;
+			sub_pixel_bg3.color &= ~SubWinBG3;
+			sub_pixel_bg4.color &= ~SubWinBG4;
+			sub_pixel_obj.color &= ~SubWinOBJ;
+
+			//	main priority circuit
+			PIXEL p_main = getPixelByPriority(BG_MODE_ID, main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj, backdrop_pixel, BG3_PRIORITY);
+			PIXEL p_sub = (window.fixSub == 1) ? fixedcolor_pixel : getPixelByPriority(BG_MODE_ID, sub_pixel_bg1, sub_pixel_bg2, sub_pixel_bg3, sub_pixel_bg4, sub_pixel_obj, fixedcolor_pixel, BG3_PRIORITY);
+		
+			p_main.color &= ~window.mainSW(SELMux);
+			p_sub.color &= ~window.subSW(SELMux);
+
+			u8 sr = (p_main.color >> 1) & 0b11111;
+			u8 sg = (p_main.color >> 6) & 0b11111;
+			u8 sb = (p_main.color >> 11) & 0b11111;
+			u8 dr = (p_sub.color >> 1) & 0b11111;
+			u8 dg = (p_sub.color >> 6) & 0b11111;
+			u8 db = (p_sub.color >> 11) & 0b11111;
+			if (window.mathEn[p_main.id]) {
+				if (window.add_sub) {					//	Subtract
+					sr = max(sr - dr, 0);
+					sg = max(sg - dg, 0);
+					sb = max(sb - db, 0);
+				}
+				else {									//	Add
+					sr = max(sr + dr, 0x1f);
+					sg = max(sg + dg, 0x1f);
+					sb = max(sb + db, 0x1f);
+				}
+				if (window.halfEn) {					//	Divide result by 2
+					sr >>= 1;
+					sg >>= 1;
+					sb >>= 1;
+				}
+			}
+
+			//	write to framebuffer
+			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, ((sb << 11) | (sg << 6) | (sr << 1) | 1));
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			INPUT_stepJoypadAutoread();
-			handleWindowEvents();
 			PPU_drawFrame();
 			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
@@ -488,12 +548,142 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 		CGRAM[adr] = (val << 8) | CGRAM_Lsb;
 		CGRAM_Flipflop = false;
 		BUS_writeToMem(BUS_readFromMem(0x2121) + 1, 0x2121);
+		if (adr == 0x0)	//	store backdrop separately for color math
+			backdrop_pixel.color = (CGRAM[0x00] << 1) | 1;
 	}
 	//printf("Write CGRAM: %x\n", val);
 }
 
 u16 PPU_readCGRAM(u8 adr) {
 	return CGRAM[adr];
+}
+
+void PPU_writeWindow1PositionLeft(u8 val) {
+	window.W1_LEFT = val;
+}
+void PPU_writeWindow1PositionRight(u8 val) {
+	window.W1_RIGHT = val;
+}
+void PPU_writeWindow2PositionLeft(u8 val) {
+	window.W2_LEFT = val;
+}
+void PPU_writeWindow2PositionRight(u8 val) {
+	window.W2_RIGHT = val;
+}
+
+void PPU_writeWindowEnableBG12(u8 val) {
+	//	window enabled?
+	window.w1en[0] = (val >> 1) & 1;
+	window.w2en[0] = (val >> 3) & 1;
+	window.w1en[1] = (val >> 5) & 1;
+	window.w2en[1] = (val >> 7) & 1;
+	//	invert signal? (this is used to determine inside/outside window setting)
+	window.w1IO[0] = (val >> 0) & 1;
+	window.w2IO[0] = (val >> 2) & 1;
+	window.w1IO[1] = (val >> 4) & 1;
+	window.w2IO[1] = (val >> 6) & 1;
+}
+void PPU_writeWindowEnableBG34(u8 val) {
+	//	window enabled?
+	window.w1en[2] = (val >> 1) & 1;
+	window.w2en[2] = (val >> 3) & 1;
+	window.w1en[3] = (val >> 5) & 1;
+	window.w2en[3] = (val >> 7) & 1;
+	//	invert signal? (this is used to determine inside/outside window setting)
+	window.w1IO[2] = (val >> 0) & 1;
+	window.w2IO[2] = (val >> 2) & 1;
+	window.w1IO[3] = (val >> 4) & 1;
+	window.w2IO[3] = (val >> 6) & 1;
+}
+void PPU_writeWindowEnableBGOBJSEL(u8 val) {
+	//	window enabled?
+	window.w1en[4] = (val >> 1) & 1;
+	window.w2en[4] = (val >> 3) & 1;
+	window.w1en[5] = (val >> 5) & 1;
+	window.w2en[5] = (val >> 7) & 1;
+	//	invert signal? (this is used to determine inside/outside window setting)
+	window.w1IO[4] = (val >> 0) & 1;
+	window.w2IO[4] = (val >> 2) & 1;
+	window.w1IO[5] = (val >> 4) & 1;
+	window.w2IO[5] = (val >> 6) & 1;
+}
+
+void PPU_writeWindowMaskLogicBGs(u8 val) {
+	//	BG1
+	switch (val & 0b11)	{
+	case 0b00: window.winlog[0] = _or; break;
+	case 0b01: window.winlog[0] = _and; break;
+	case 0b10: window.winlog[0] = _xor; break;
+	case 0b11: window.winlog[0] = _xnor; break;
+	default: break;
+	}
+	//	BG2
+	switch ((val >> 2) & 0b11) {
+	case 0b00: window.winlog[1] = _or; break;
+	case 0b01: window.winlog[1] = _and; break;
+	case 0b10: window.winlog[1] = _xor; break;
+	case 0b11: window.winlog[1] = _xnor; break;
+	default: break;
+	}
+	//	BG3
+	switch ((val >> 4) & 0b11) {
+	case 0b00: window.winlog[2] = _or; break;
+	case 0b01: window.winlog[2] = _and; break;
+	case 0b10: window.winlog[2] = _xor; break;
+	case 0b11: window.winlog[2] = _xnor; break;
+	default: break;
+	}
+	//	BG4
+	switch ((val >> 6) & 0b11) {
+	case 0b00: window.winlog[3] = _or; break;
+	case 0b01: window.winlog[3] = _and; break;
+	case 0b10: window.winlog[3] = _xor; break;
+	case 0b11: window.winlog[3] = _xnor; break;
+	default: break;
+	}
+}
+void PPU_writeWindowMaskLogicOBJSEL(u8 val) {
+	//	OBJ
+	switch ((val >> 0) & 0b11) {
+	case 0b00: window.winlog[4] = _or; break;
+	case 0b01: window.winlog[4] = _and; break;
+	case 0b10: window.winlog[4] = _xor; break;
+	case 0b11: window.winlog[4] = _xnor; break;
+	default: break;
+	}
+	//	SEL/Math/Color
+	switch ((val >> 2) & 0b11) {
+	case 0b00: window.winlog[5] = _or; break;
+	case 0b01: window.winlog[5] = _and; break;
+	case 0b10: window.winlog[5] = _xor; break;
+	case 0b11: window.winlog[5] = _xnor; break;
+	default: break;
+	}
+}
+
+void PPU_writeMainscreenDisable(u8 val) {
+	window.tmw[0] = (val >> 0) & 1;
+	window.tmw[1] = (val >> 1) & 1;
+	window.tmw[2] = (val >> 2) & 1;
+	window.tmw[3] = (val >> 3) & 1;
+	window.tmw[4] = (val >> 4) & 1;
+}
+void PPU_writeSubscreenDisable(u8 val) {
+	window.tsw[0] = (val >> 0) & 1;
+	window.tsw[1] = (val >> 1) & 1;
+	window.tsw[2] = (val >> 2) & 1;
+	window.tsw[3] = (val >> 3) & 1;
+	window.tsw[4] = (val >> 4) & 1;
+}
+
+void PPU_writeSubscreenFixedColor(u8 val) {
+	bool r = ((val >> 5) & 1) == 1;
+	bool g = ((val >> 6) & 1) == 1;
+	bool b = ((val >> 7) & 1) == 1;
+	u8 intensity = val & 0b11111;
+	if (r) fixedcolor_pixel.color = (fixedcolor_pixel.color & 0b11111'11111'00000'1) | (intensity << 1);
+	if (g) fixedcolor_pixel.color = (fixedcolor_pixel.color & 0b11111'00000'11111'1) | (intensity << 6);
+	if (b) fixedcolor_pixel.color = (fixedcolor_pixel.color & 0b00000'11111'11111'1) | (intensity << 11);
 }
 
 void PPU_writeBGScreenSizeAndBase(u8 bg_id, u8 val) {
@@ -545,39 +735,58 @@ void PPU_setMosaic(u8 val) {
 }
 
 void PPU_writeINIDISP(u8 val) {
-	//	TODO
-	//	Force Blanking & Brightness
 	MASTER_BRIGHTNESS = (val & 0b1111) / (double)0xf;
 	FORCED_BLANKING = val >> 7;
 }
 
 void PPU_writeColorMathControlRegisterA(u8 val) {
-	COLOR_MATH_REG_A_FORCE_MAIN_SCREEN_BLACK = (val >> 6) & 0b11;
-	COLOR_MATH_REG_A_COLOR_MATH_ENABLE = (val >> 4) & 0b11;
-	COLOR_MATH_REG_A_ENABLE_SUBSCREENS = (val >> 1) & 1;
-	COLOR_MATH_REG_A_DIRECT_COLOR = val & 1;
+	switch ((val >> 6) & 0b11) {
+	case 0b00: window.mainSW = _never; break;
+	case 0b01: window.mainSW = _invert; break;
+	case 0b10: window.mainSW = _pass; break;
+	case 0b11: window.mainSW = _always; break;
+	}
+	switch ((val >> 4) & 0b11) {
+	case 0b00: window.subSW = _always; break;
+	case 0b01: window.subSW = _pass; break;
+	case 0b10: window.subSW = _invert; break;
+	case 0b11: window.subSW = _never; break;
+	}
+	window.fixSub = (val >> 1) & 1;
+	window.directColor = val & 1;
 }
 
 void PPU_writeColorMathControlRegisterB(u8 val) {
-	COLOR_MATH_REG_B_ADD_SUB = ((val >> 7) & 1) ? SDL_BLENDMODE_SUB : SDL_BLENDMODE_ADD;
-	COLOR_MATH_REG_B_HALF_RESULT = (val >> 6) & 1;
-	COLOR_MATH_REG_B_ENABLE_BACKDROP = (val >> 5) & 1;
-
-	SUB_COLMATH_ENABLED[0] = val & 1;
-	SUB_COLMATH_ENABLED[1] = (val >> 1) & 1;
-	SUB_COLMATH_ENABLED[2] = (val >> 2) & 1;
-	SUB_COLMATH_ENABLED[3] = (val >> 3) & 1;
-	SUB_COLMATH_ENABLED[4] = (val >> 4) & 1;
+	window.add_sub = ((val >> 7) & 1) == 1;
+	window.halfEn = ((val >> 6) & 1) == 1;
+	window.mathEn[0] = (val & 1) == 1;
+	window.mathEn[1] = ((val >> 1) & 1) == 1;
+	window.mathEn[2] = ((val >> 2) & 1) == 1;
+	window.mathEn[3] = ((val >> 3) & 1) == 1;
+	window.mathEn[4] = ((val >> 4) & 1) == 1;
+	window.mathEn[5] = ((val >> 5) & 1) == 1;
 }
 
-void PPU_writeBGEnabled(u8 val) {
-	for(u8 f = 0; f <  5; f++)
-		BG_ENABLED[f] = (val >> f) & 1;
+void PPU_writeMainScreenEnabled(u8 val) {
+	window.tm[0] = (val >> 0) & 1;
+	window.tm[1] = (val >> 1) & 1;
+	window.tm[2] = (val >> 2) & 1;
+	window.tm[3] = (val >> 3) & 1;
+	window.tm[4] = (val >> 4) & 1;
 }
 
-void PPU_writeSUBEnabled(u8 val) {
-	for (u8 f = 0; f < 5; f++)
-		SUB_ENABLED[f] = (val >> f) & 1;
+void PPU_writeSubScreenEnabled(u8 val) {
+	window.ts[0] = (val >> 0) & 1;
+	window.ts[1] = (val >> 1) & 1;
+	window.ts[2] = (val >> 2) & 1;
+	window.ts[3] = (val >> 3) & 1;
+	window.ts[4] = (val >> 4) & 1;
+}
+
+void PPU_writeBGMode(u8 val) {
+	BG_MODE_ID = (val & 0b111);
+	BG_MODE = PPU_BG_MODES[BG_MODE_ID];
+	BG3_PRIORITY = ((val >> 3) & 1) == 1;
 }
 
 //	reading the VBlank NMI Flag automatically aknowledges it
@@ -601,16 +810,15 @@ void debug_drawBG(u8 bg_id) {
 	u16 tex_h = (8 * BG_TILES_V[bg_id]);
 
 	//	render full size
-	u8 bg_mode = BUS_readFromMem(0x2105) & 0b111;
-	if (PPU_BG_MODES[bg_mode][bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
+	if (BG_MODE[bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 		for (u16 y = 0; y < tex_h; y++) {
 			for (u16 x = 0; x < tex_w; x++) {
-				if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[bg_mode][bg_id]);
-				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[bg_mode][bg_id]);
-				else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[bg_mode][bg_id]);
+				if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
+					renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
+					renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
+					renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
 			}
 		}
 	}
@@ -626,11 +834,11 @@ void debug_drawBG(u8 bg_id) {
 	//	window decorations
 	char title[70];
 	u8 bpp = 0;
-	if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
+	if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
 		bpp = 2;
-	else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
+	else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
 		bpp = 4;
-	else if (PPU_BG_MODES[bg_mode][bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
+	else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
 		bpp = 8;
 	snprintf(title, sizeof title, "[ BG%d | %dx%d | %dBPP | base 0x%04x | tilebase 0x%04x ]", bg_id+1, tex_w, tex_h, bpp, BG_BASE[bg_id], BG_TILEBASE[bg_id] );
 	SDL_SetWindowTitle(tWindows, title);

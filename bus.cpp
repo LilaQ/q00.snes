@@ -258,6 +258,9 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 			PPU_writeINIDISP(val);
 			break;
 
+		case 0x2105:				//	PPU - BGMODE - BG Mode and Character Size (W)
+			PPU_writeBGMode(val);
+			break;
 		case 0x2106:				//	PPU - Set Mosaic
 			PPU_setMosaic(val);
 			break;
@@ -362,11 +365,48 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 			PPU_writeCGRAM(val, memory[0x2121]);
 			break;
 
+		case 0x2123:			//	PPU - W12SEL - Window BG1 / BG2 Mask Settings (W)
+			PPU_writeWindowEnableBG12(val);
+			break;
+		case 0x2124:			//	PPU - W34SEL - Window BG3 / BG4 Mask Settings (W)
+			PPU_writeWindowEnableBG34(val);
+			break;
+		case 0x2125:			//	PPU - WOBJSEL - Window OBJ / Math(Color) Mask Settings (W)
+			PPU_writeWindowEnableBGOBJSEL(val);
+			break;
+
+		case 0x2126:			//	PPU - WH0 - Window 1 Left Position
+			PPU_writeWindow1PositionLeft(val);
+			break;
+		case 0x2127:			//	PPU - WH1 - Window 1 Right Position
+			PPU_writeWindow1PositionRight(val);
+			break;
+		case 0x2128:			//	PPU - WH2 - Window 2 Left Position
+			PPU_writeWindow2PositionLeft(val);
+			break;
+		case 0x2129:			//	PPU - WH3 - Window 2 Right Position
+			PPU_writeWindow2PositionRight(val);
+			break;
+
+		case 0x212a:			//	PPU - WBGLOG - Window 1 / 2 Mask Logic (W)
+			PPU_writeWindowMaskLogicBGs(val);
+			break;
+		case 0x212b:			//	PPU - WOBJLOG - Window 1 / 2 Mask Logic (W)
+			PPU_writeWindowMaskLogicOBJSEL(val);
+			break;
+
 		case 0x212c:			//	PPU - TM - MainScreen Enable / Disable
-			PPU_writeBGEnabled(val);
+			PPU_writeMainScreenEnabled(val);
 			break;
 		case 0x212d:			//	PPU - TS - SubScreen Enable / Disable
-			PPU_writeSUBEnabled(val);
+			PPU_writeSubScreenEnabled(val);
+			break;
+
+		case 0x212e:			//	PPU - TMW - Window area Main screen Disable (W)
+			PPU_writeMainscreenDisable(val);
+			break;
+		case 0x212f:			//	PPU - TSW - Window area Sub screen Disable (W)
+			PPU_writeSubscreenDisable(val);
 			break;
 
 		case 0x2130:			//	PPU - CGWSEL - Color Math Control Register A (W)
@@ -374,6 +414,10 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 			break;
 		case 0x2131:			//	PPU - CGADSUB - Color Math Control Registers B (W)
 			PPU_writeColorMathControlRegisterB(val);
+			break;
+
+		case 0x2132:			//	PPU - COLDATA - Color Math Sub Screen Backdrop (Fixed Color) (W)
+			PPU_writeSubscreenFixedColor(val);
 			break;
 
 		case 0x2140:			//	APU - Main communication registers

@@ -18,7 +18,6 @@ struct DMA {
 
 public:
 	bool enabled = false;
-	bool do_transfer = false;
 	bool repeat = false;
 	bool terminated = false;
 	u8 directon = 0;
