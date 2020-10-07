@@ -126,6 +126,11 @@ void PPU_reset() {
 	src_pixel_bg3.id = 2;
 	src_pixel_bg4.id = 3;
 	src_pixel_obj.id = 4;
+	src_pixel_bg1.color = 0;
+	src_pixel_bg2.color = 0;
+	src_pixel_bg3.color = 0;
+	src_pixel_bg4.color = 0;
+	src_pixel_obj.color = 0;
 	backdrop_pixel.id = 5;
 	fixedcolor_pixel.id = 5;
 	window.mainSW = _never;
@@ -329,7 +334,7 @@ void getPixel2BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
 	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
 	const u16 tile_address = tile_id * 8 + tile_base + v_shift;	
-	const u8 v = (((VRAM[tile_address] >> 8) >> h_shift) & 1) + (2 * (((VRAM[tile_address] & 0xff) >> h_shift) & 1));
+	const u8 v = 2 * (((VRAM[tile_address] >> 8) >> h_shift) & 1) + ((((VRAM[tile_address] & 0xff) >> h_shift) & 1));
 	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset);
 	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 }
@@ -420,12 +425,30 @@ void PPU_step(u8 steps) {
 			const bool in_W1 = window.W1_LEFT <= RENDER_X && RENDER_X <= window.W1_RIGHT;
 			const bool in_W2 = window.W2_LEFT <= RENDER_X && RENDER_X <= window.W2_RIGHT;
 
-			const bool BG1Mux = window.winlog[0]((in_W1 && window.w1en[0] ^ window.w1IO[0]), (in_W2 && window.w2en[0] ^ window.w2IO[0]));
-			const bool BG2Mux = window.winlog[1]((in_W1 && window.w1en[1] ^ window.w1IO[1]), (in_W2 && window.w2en[1] ^ window.w2IO[1]));
-			const bool BG3Mux = window.winlog[2]((in_W1 && window.w1en[2] ^ window.w1IO[2]), (in_W2 && window.w2en[2] ^ window.w2IO[2]));
-			const bool BG4Mux = window.winlog[3]((in_W1 && window.w1en[3] ^ window.w1IO[3]), (in_W2 && window.w2en[3] ^ window.w2IO[3]));
-			const bool OBJMux = window.winlog[4]((in_W1 && window.w1en[4] ^ window.w1IO[4]), (in_W2 && window.w2en[4] ^ window.w2IO[4]));
-			const bool SELMux = window.winlog[5]((in_W1 && window.w1en[5] ^ window.w1IO[5]), (in_W2 && window.w2en[5] ^ window.w2IO[5]));
+			bool BG1Mux = false;
+			bool BG2Mux = false;
+			bool BG3Mux = false;
+			bool BG4Mux = false;
+			bool OBJMux = false;
+			bool SELMux = false;
+			if (window.w1en[0] || window.w2en[0]) {
+				BG1Mux = !window.winlog[0](( in_W1 ^ window.w1IO[0]), (in_W2 ^ window.w2IO[0]));
+			}
+			if (window.w1en[1] || window.w2en[1]) {
+				BG2Mux = !window.winlog[1](( in_W1 ^ window.w1IO[1]), (in_W2 ^ window.w2IO[1]));
+			}
+			if (window.w1en[2] || window.w2en[2]) {
+				BG3Mux = !window.winlog[2](( in_W1 ^ window.w1IO[2]), (in_W2 ^ window.w2IO[2]));
+			}
+			if (window.w1en[3] || window.w2en[3]) {
+				BG4Mux = !window.winlog[3](( in_W1 ^ window.w1IO[3]), (in_W2 ^ window.w2IO[3]));
+			}
+			if (window.w1en[4] || window.w2en[4]) {
+				OBJMux = !window.winlog[4](( in_W1 ^ window.w1IO[4]), (in_W2 ^ window.w2IO[4]));
+			}
+			if (window.w1en[5] || window.w2en[5]) {
+				SELMux = !window.winlog[5](( in_W1 ^ window.w1IO[5]), (in_W2 ^ window.w2IO[5]));
+			}
 
 			const bool MainWinBG1 = BG1Mux && window.tmw[0];
 			const bool MainWinBG2 = BG2Mux && window.tmw[1];
@@ -444,7 +467,7 @@ void PPU_step(u8 steps) {
 			PPU_BG_MODES_FUNCTION[BG_MODE_ID][1](RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
 			PPU_BG_MODES_FUNCTION[BG_MODE_ID][2](RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
 			PPU_BG_MODES_FUNCTION[BG_MODE_ID][3](RENDER_X, RENDER_Y, BG_BASE[3], BG_TILES_H[3], BG_TILES_V[3], BG_TILEBASE[3], BGSCROLLX[3], BGSCROLLY[3] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][3], src_pixel_bg4);
-			//PPU_BG_MODES_FUNCTION[BG_MODE_ID][4](RENDER_X, RENDER_Y, BG_BASE[4], BG_TILES_H[4], BG_TILES_V[4], BG_TILEBASE[4], BGSCROLLX[4], BGSCROLLY[4] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][4], src_pixel_obj);
+			//PPU_BG_MODES_FUNCTION[BG_MODE_ID][0](RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_obj);
 				
 			//	split source pixel to main screen and sub screen
 			main_pixel_bg1 = src_pixel_bg1;
@@ -459,32 +482,32 @@ void PPU_step(u8 steps) {
 			sub_pixel_obj = src_pixel_obj;
 
 			//	if not enabled, make pixel transparent
-			main_pixel_bg1.color &= ~window.tm[0];
-			main_pixel_bg2.color &= ~window.tm[1];
-			main_pixel_bg3.color &= ~window.tm[2];
-			main_pixel_bg4.color &= ~window.tm[3];
-			main_pixel_obj.color &= ~window.tm[4];
-			sub_pixel_bg1.color &= ~window.ts[0];
-			sub_pixel_bg2.color &= ~window.ts[1];
-			sub_pixel_bg3.color &= ~window.ts[2];
-			sub_pixel_bg4.color &= ~window.ts[3];
-			sub_pixel_obj.color &= ~window.ts[4];
+			main_pixel_bg1.color *= window.tm[0];
+			main_pixel_bg2.color *= window.tm[1];
+			main_pixel_bg3.color *= window.tm[2];
+			main_pixel_bg4.color *= window.tm[3];
+			main_pixel_obj.color *= window.tm[4];
+			sub_pixel_bg1.color *= window.ts[0];
+			sub_pixel_bg2.color *= window.ts[1];
+			sub_pixel_bg3.color *= window.ts[2];
+			sub_pixel_bg4.color *= window.ts[3];
+			sub_pixel_obj.color *= window.ts[4];
 
 			//	pipe the window in, pixel again will become transparent of not enabled at this point
-			main_pixel_bg1.color &= ~MainWinBG1;
-			main_pixel_bg2.color &= ~MainWinBG2;
-			main_pixel_bg3.color &= ~MainWinBG3;
-			main_pixel_bg4.color &= ~MainWinBG4;
-			main_pixel_obj.color &= ~MainWinOBJ;
-			sub_pixel_bg1.color &= ~SubWinBG1;
-			sub_pixel_bg2.color &= ~SubWinBG2;
-			sub_pixel_bg3.color &= ~SubWinBG3;
-			sub_pixel_bg4.color &= ~SubWinBG4;
-			sub_pixel_obj.color &= ~SubWinOBJ;
+			main_pixel_bg1.color *= (MainWinBG1 || (!window.w1en[0] && !window.w2en[0]));
+			main_pixel_bg2.color *= (MainWinBG2 || (!window.w1en[1] && !window.w2en[1]));
+			main_pixel_bg3.color *= (MainWinBG3 || (!window.w1en[2] && !window.w2en[2]));
+			main_pixel_bg4.color *= (MainWinBG4 || (!window.w1en[3] && !window.w2en[3]));
+			main_pixel_obj.color *= (MainWinOBJ || (!window.w1en[4] && !window.w2en[4]));
+			sub_pixel_bg1.color *= (SubWinBG1 || (!window.w1en[0] && !window.w2en[0]));
+			sub_pixel_bg2.color *= (SubWinBG2 || (!window.w1en[1] && !window.w2en[1]));
+			sub_pixel_bg3.color *= (SubWinBG3 || (!window.w1en[2] && !window.w2en[2]));
+			sub_pixel_bg4.color *= (SubWinBG4 || (!window.w1en[3] && !window.w2en[3]));
+			sub_pixel_obj.color *= (SubWinOBJ || (!window.w1en[4] && !window.w2en[4]));
 
 			//	main priority circuit
 			PIXEL p_main = getPixelByPriority(BG_MODE_ID, main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj, backdrop_pixel, BG3_PRIORITY);
-			PIXEL p_sub = (window.fixSub == 1) ? fixedcolor_pixel : getPixelByPriority(BG_MODE_ID, sub_pixel_bg1, sub_pixel_bg2, sub_pixel_bg3, sub_pixel_bg4, sub_pixel_obj, fixedcolor_pixel, BG3_PRIORITY);
+			PIXEL p_sub = (window.fixSub == 0) ? fixedcolor_pixel : getPixelByPriority(BG_MODE_ID, sub_pixel_bg1, sub_pixel_bg2, sub_pixel_bg3, sub_pixel_bg4, sub_pixel_obj, fixedcolor_pixel, BG3_PRIORITY);
 		
 			p_main.color &= ~window.mainSW(SELMux);
 			p_sub.color &= ~window.subSW(SELMux);
@@ -502,9 +525,9 @@ void PPU_step(u8 steps) {
 					sb = max(sb - db, 0);
 				}
 				else {									//	Add
-					sr = max(sr + dr, 0x1f);
-					sg = max(sg + dg, 0x1f);
-					sb = max(sb + db, 0x1f);
+					sr = min(sr + dr, 0x1f);
+					sg = min(sg + dg, 0x1f);
+					sb = min(sb + db, 0x1f);
 				}
 				if (window.halfEn) {					//	Divide result by 2
 					sr >>= 1;
@@ -514,7 +537,7 @@ void PPU_step(u8 steps) {
 			}
 
 			//	write to framebuffer
-			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, ((sb << 11) | (sg << 6) | (sr << 1) | 1));
+			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, ((u16)(((sb << 11) | (sg << 6) | (sr << 1)) * MASTER_BRIGHTNESS) | 1));
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			INPUT_stepJoypadAutoread();
