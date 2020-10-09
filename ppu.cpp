@@ -78,10 +78,29 @@ bool MOSAIC_ENABLED[4] = { false, false, false, false };
 u8 MOSAIC_SIZE = 0;
 
 //	INIDISP
-double MASTER_BRIGHTNESS = 0;
+u8 MASTER_BRIGHTNESS = 0;
 bool FORCED_BLANKING = false;
 
-const u8 FIVEBIT_TO_EIGHTBIT_LUT[0x20] = { 0, 8, 16, 24, 32, 41, 49, 57, 65, 74, 82, 90, 98, 106, 115, 123, 131, 139, 148, 156, 164, 172, 180, 189, 197, 205, 213, 222, 230, 238, 246, 255 };
+//	r = [[int(a*b) for b in [int(x / 31 * 255) for x in range(32)]] for a in [x / 15 for x in range(16)]]
+
+const u8 FIVEBIT_TO_EIGHTBIT_LUT[0x10][0x20] = {
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+	{0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 17},
+	{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 31, 32, 34},
+	{0, 1, 3, 4, 6, 8, 9, 11, 13, 14, 16, 18, 19, 21, 23, 24, 26, 27, 29, 31, 32, 34, 36, 37, 39, 41, 42, 44, 46, 47, 49, 51},
+	{0, 2, 4, 6, 8, 10, 13, 15, 17, 19, 21, 24, 26, 28, 30, 32, 34, 37, 39, 41, 43, 45, 48, 50, 52, 54, 56, 59, 61, 63, 65, 68},
+	{0, 2, 5, 8, 10, 13, 16, 19, 21, 24, 27, 30, 32, 35, 38, 41, 43, 46, 49, 52, 54, 57, 60, 63, 65, 68, 71, 74, 76, 79, 82, 85},
+	{0, 3, 6, 9, 12, 16, 19, 22, 26, 29, 32, 36, 39, 42, 46, 49, 52, 55, 59, 62, 65, 68, 72, 75, 78, 82, 85, 88, 92, 95, 98, 102},
+	{0, 3, 7, 11, 14, 19, 22, 26, 30, 34, 38, 42, 45, 49, 53, 57, 61, 64, 69, 72, 76, 80, 84, 88, 91, 95, 99, 103, 107, 111, 114, 119},
+	{0, 4, 8, 12, 17, 21, 26, 30, 34, 39, 43, 48, 52, 56, 61, 65, 69, 74, 78, 83, 87, 91, 96, 100, 105, 109, 113, 118, 122, 126, 131, 136},
+	{0, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 58, 63, 69, 73, 78, 83, 88, 93, 98, 103, 108, 113, 118, 123, 127, 133, 138, 142, 147, 153},
+	{0, 5, 10, 16, 21, 27, 32, 38, 43, 49, 54, 60, 65, 70, 76, 82, 87, 92, 98, 104, 109, 114, 120, 126, 131, 136, 142, 148, 153, 158, 164, 170},
+	{0, 5, 11, 17, 23, 30, 35, 41, 47, 54, 60, 66, 71, 77, 84, 90, 96, 101, 108, 114, 120, 126, 132, 138, 144, 150, 156, 162, 168, 174, 180, 187},
+	{0, 6, 12, 19, 25, 32, 39, 45, 52, 59, 65, 72, 78, 84, 92, 98, 104, 111, 118, 124, 131, 137, 144, 151, 157, 164, 170, 177, 184, 190, 196, 204},
+	{0, 6, 13, 20, 27, 35, 42, 49, 56, 64, 71, 78, 84, 91, 99, 106, 113, 120, 128, 135, 142, 149, 156, 163, 170, 177, 184, 192, 199, 206, 213, 221},
+	{0, 7, 14, 22, 29, 38, 45, 53, 60, 69, 76, 84, 91, 98, 107, 114, 122, 129, 138, 145, 153, 160, 168, 176, 183, 191, 198, 207, 214, 222, 229, 238},
+	{0, 8, 16, 24, 32, 41, 49, 57, 65, 74, 82, 90, 98, 106, 115, 123, 131, 139, 148, 156, 164, 172, 180, 189, 197, 205, 213, 222, 230, 238, 246, 255}
+};
 
 PIXEL src_pixel_bg1, src_pixel_bg2, src_pixel_bg3, src_pixel_bg4, src_pixel_obj;
 PIXEL main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj;
@@ -190,22 +209,14 @@ void PPU_drawFrame() {
 	
 }
 const u8 ALPHA_LUT[2] = {0, 255};
-void writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u16 v) {
-	const u8 r = FIVEBIT_TO_EIGHTBIT_LUT[(v >> 1) & 0b11111];
-	const u8 g = FIVEBIT_TO_EIGHTBIT_LUT[(v >> 6) & 0b11111];
-	const u8 b = FIVEBIT_TO_EIGHTBIT_LUT[(v >> 11) & 0b11111];
-	const u8 a = ALPHA_LUT[(v & 1)];
-	BG[y * width + x] = r | (g << 8) | (b << 16) | (a << 24);
+void writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u8 _r, const u8 _g, const u8 _b, const u8 _a) {
+	BG[y * width + x] = FIVEBIT_TO_EIGHTBIT_LUT[MASTER_BRIGHTNESS][_r] | (FIVEBIT_TO_EIGHTBIT_LUT[MASTER_BRIGHTNESS][_g] << 8) | (FIVEBIT_TO_EIGHTBIT_LUT[MASTER_BRIGHTNESS][_b] << 16) | (ALPHA_LUT[_a] << 24);
 }
 
 inline u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
 	if (id == 0) return 0x00000000;	//	id 0 = transparency
-	return (u16)(CGRAM[(id + palette * (bpp * bpp)) + palette_offset] * MASTER_BRIGHTNESS) << 1 | 1;
+	return CGRAM[(id + palette * (bpp * bpp)) + palette_offset] << 1 | 1;
 }
-
-void renderBackdrop(u16 srcx, u16 srcy, u32* BG) {
-	writeToFB(BG, srcx, srcy, 256, ((u16)(CGRAM[0x00] * MASTER_BRIGHTNESS) << 1 | 1));
-};
 
 void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
@@ -231,9 +242,9 @@ void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u8 b_hi = VRAM[tile_address] >> 8;
 	const u8 b_lo = VRAM[tile_address] & 0xff;
 	const u8 v = ((b_lo >> h_shift) & 1) + (2 * ((b_hi >> h_shift) & 1));
-	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset));
+	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset);
+	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
-
 void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
@@ -263,9 +274,9 @@ void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(2 * ((b_2 >> h_shift) & 1)) +
 					(4 * ((b_3 >> h_shift) & 1)) +
 					(8 * ((b_4 >> h_shift) & 1));
-	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset));
+	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
-
 void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
@@ -304,7 +315,8 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(32 *	((b_6 >> h_shift) & 1)) +
 					(64 *	((b_7 >> h_shift) & 1)) +
 					(128 *	((b_8 >> h_shift) & 1));
-	writeToFB(BG, orgx, orgy, texture_width, getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset));
+	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset);
+	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
 
 
@@ -387,39 +399,42 @@ void getPixel4BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u
 	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
+
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
 	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
+
 	const u16 tile_address = tile_id * 16 + tile_base + v_shift;		//	this doesn't have tile_base like 8bpp, fix?
 	const u16 v =	(((VRAM[tile_address] & 0xff)		>> h_shift) & 1) +
-		(2 *		(((VRAM[tile_address] >> 8)			>> h_shift) & 1)) +
-		(4 *		(((VRAM[tile_address + 8] & 0xff)	>> h_shift) & 1)) +
-		(8 *		(((VRAM[tile_address + 8] >> 8)		>> h_shift) & 1));
+					((((VRAM[tile_address] >> 8)		>> h_shift) & 1) << 1) +
+					((((VRAM[tile_address + 8] & 0xff)	>> h_shift) & 1) << 2) +
+					((((VRAM[tile_address + 8] >> 8)	>> h_shift) & 1) << 3);
 	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
 	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 }
+
 
 u16 vbl = 0;
 void PPU_step(u8 steps) {
 
 	while (steps--) {
-		if (++RENDER_X == 256) {					//	H-Blank starts
+		if (++RENDER_X == 256 && RENDER_Y < 241) {	//	H-Blank starts
 			BUS_startHDMA();
 		}		
-		else if (RENDER_X == 341) {				//	PAL Line, usually takes up 341 dot cycles (unless interlace=on, field=1, line=311 it will be one additional dot cycle)
+		else if (RENDER_X == 341) {					//	PAL Line, usually takes up 341 dot cycles (unless interlace=on, field=1, line=311 it will be one additional dot cycle)
 			RENDER_X = 0;
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::set(Interrupts::NMI);
 				printf("VBlank %d\n", ++vbl);
 			}
-			else if (RENDER_Y == 312) {			//	PAL System has 312 lines
+			else if (RENDER_Y == 312) {				//	PAL System has 312 lines
 				RENDER_Y = 0;
 				VBlankNMIFlag = false;
 				Interrupts::clear(Interrupts::NMI);
-				BUS_resetHDMA();				//	A new frame will begin, we can safely reset our HDMAs now
+				BUS_resetHDMA();					//	A new frame will begin, we can safely reset our HDMAs now
 			}
 		}
-		if (RENDER_X < 256 && RENDER_Y < 241) {	//	Only render current pixel(s) if we're not in any blanking period
+		if (RENDER_X < 256 && RENDER_Y < 241) {		//	Only render current pixel(s) if we're not in any blanking period
 			//PPU_render();
 
 			const bool in_W1 = window.W1_LEFT <= RENDER_X && RENDER_X <= window.W1_RIGHT;
@@ -461,14 +476,14 @@ void PPU_step(u8 steps) {
 			const bool SubWinBG4 = BG4Mux && window.tsw[3];
 			const bool SubWinOBJ = OBJMux && window.tsw[4];
 
-			//	get pixel (incl. priority) from current x/y
+			////	get pixel (incl. priority) from current x/y
 			src_pixel_obj.color = 0;
-			PPU_BG_MODES_FUNCTION[BG_MODE_ID][0](RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+			/*PPU_BG_MODES_FUNCTION[BG_MODE_ID][0](RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
 			PPU_BG_MODES_FUNCTION[BG_MODE_ID][1](RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
 			PPU_BG_MODES_FUNCTION[BG_MODE_ID][2](RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
 			PPU_BG_MODES_FUNCTION[BG_MODE_ID][3](RENDER_X, RENDER_Y, BG_BASE[3], BG_TILES_H[3], BG_TILES_V[3], BG_TILEBASE[3], BGSCROLLX[3], BGSCROLLY[3] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][3], src_pixel_bg4);
-			//PPU_BG_MODES_FUNCTION[BG_MODE_ID][0](RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_obj);
-				
+			PPU_BG_MODES_FUNCTION[BG_MODE_ID][0](RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_obj);*/
+			
 			//	split source pixel to main screen and sub screen
 			main_pixel_bg1 = src_pixel_bg1;
 			main_pixel_bg2 = src_pixel_bg2;
@@ -482,28 +497,49 @@ void PPU_step(u8 steps) {
 			sub_pixel_obj = src_pixel_obj;
 
 			//	if not enabled, make pixel transparent
-			main_pixel_bg1.color *= window.tm[0];
-			main_pixel_bg2.color *= window.tm[1];
-			main_pixel_bg3.color *= window.tm[2];
-			main_pixel_bg4.color *= window.tm[3];
-			main_pixel_obj.color *= window.tm[4];
-			sub_pixel_bg1.color *= window.ts[0];
-			sub_pixel_bg2.color *= window.ts[1];
-			sub_pixel_bg3.color *= window.ts[2];
-			sub_pixel_bg4.color *= window.ts[3];
-			sub_pixel_obj.color *= window.ts[4];
+			if(!window.tm[0])
+				main_pixel_bg1.color = 0;
+			if (!window.tm[1])
+				main_pixel_bg2.color = 0;
+			if (!window.tm[2])
+				main_pixel_bg3.color = 0;
+			if (!window.tm[3])
+				main_pixel_bg4.color = 0;
+			if (!window.tm[4])
+				main_pixel_obj.color = 0;
+			if (!window.ts[0])
+				sub_pixel_bg1.color = 0;
+			if (!window.ts[1])
+				sub_pixel_bg2.color = 0;
+			if (!window.ts[2])
+				sub_pixel_bg3.color = 0;
+			if (!window.ts[3])
+				sub_pixel_bg4.color = 0;
+			if (!window.ts[4])
+				sub_pixel_obj.color = 0;
+
 
 			//	pipe the window in, pixel again will become transparent of not enabled at this point
-			main_pixel_bg1.color *= (MainWinBG1 || (!window.w1en[0] && !window.w2en[0]));
-			main_pixel_bg2.color *= (MainWinBG2 || (!window.w1en[1] && !window.w2en[1]));
-			main_pixel_bg3.color *= (MainWinBG3 || (!window.w1en[2] && !window.w2en[2]));
-			main_pixel_bg4.color *= (MainWinBG4 || (!window.w1en[3] && !window.w2en[3]));
-			main_pixel_obj.color *= (MainWinOBJ || (!window.w1en[4] && !window.w2en[4]));
-			sub_pixel_bg1.color *= (SubWinBG1 || (!window.w1en[0] && !window.w2en[0]));
-			sub_pixel_bg2.color *= (SubWinBG2 || (!window.w1en[1] && !window.w2en[1]));
-			sub_pixel_bg3.color *= (SubWinBG3 || (!window.w1en[2] && !window.w2en[2]));
-			sub_pixel_bg4.color *= (SubWinBG4 || (!window.w1en[3] && !window.w2en[3]));
-			sub_pixel_obj.color *= (SubWinOBJ || (!window.w1en[4] && !window.w2en[4]));
+			if(!(MainWinBG1 || (!window.w1en[0] && !window.w2en[0])))
+				main_pixel_bg1.color = 0;
+			if (!(MainWinBG2 || (!window.w1en[1] && !window.w2en[1])))
+				main_pixel_bg2.color = 0;
+			if (!(MainWinBG3 || (!window.w1en[2] && !window.w2en[2])))
+				main_pixel_bg3.color = 0;
+			if (!(MainWinBG4 || (!window.w1en[3] && !window.w2en[3])))
+				main_pixel_bg4.color = 0;
+			if (!(MainWinOBJ || (!window.w1en[4] && !window.w2en[4])))
+				main_pixel_obj.color = 0;
+			if(!(SubWinBG1 || (!window.w1en[0] && !window.w2en[0])))
+				sub_pixel_bg1.color = 0;
+			if (!(SubWinBG2 || (!window.w1en[1] && !window.w2en[1])))
+				sub_pixel_bg2.color = 0;
+			if (!(SubWinBG3 || (!window.w1en[2] && !window.w2en[2])))
+				sub_pixel_bg3.color = 0;
+			if (!(SubWinBG4 || (!window.w1en[3] && !window.w2en[3])))
+				sub_pixel_bg4.color = 0;
+			if (!(SubWinOBJ || (!window.w1en[4] && !window.w2en[4])))
+				sub_pixel_obj.color = 0;
 
 			//	main priority circuit
 			PIXEL p_main = getPixelByPriority(BG_MODE_ID, main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj, backdrop_pixel, BG3_PRIORITY);
@@ -537,12 +573,11 @@ void PPU_step(u8 steps) {
 			}
 
 			//	write to framebuffer
-			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, ((u16)(((sb << 11) | (sg << 6) | (sr << 1)) * MASTER_BRIGHTNESS) | 1));
+			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, sr, sg, sb, 1);
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			INPUT_stepJoypadAutoread();
 			PPU_drawFrame();
-			//printf("Scroll x : %x  y: %x\n", BGSCROLLX[0], BGSCROLLY[0]);
 		}
 		
 	}
@@ -758,7 +793,7 @@ void PPU_setMosaic(u8 val) {
 }
 
 void PPU_writeINIDISP(u8 val) {
-	MASTER_BRIGHTNESS = (val & 0b1111) / (double)0xf;
+	MASTER_BRIGHTNESS = val & 0b1111;
 	FORCED_BLANKING = val >> 7;
 }
 
