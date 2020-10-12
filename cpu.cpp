@@ -54,10 +54,10 @@ u8 pullFromStack() {
 	return val;
 }
 //	return P as readable string
-inline const string byteToBinaryString(u8 val) {
+inline const std::string byteToBinaryString(u8 val) {
 
 	//	alpha representation (bsnes-like)
-	string s = "";
+	std::string s = "";
 	s += regs.P.getNegative() ? "N" : "n";
 	s += regs.P.getOverflow() ? "V" : "v";
 	if (regs.P.getEmulation()) {

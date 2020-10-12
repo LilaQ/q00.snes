@@ -43,7 +43,7 @@
 //string filename = "8x8BG3Map2BPP32x328PAL.sfc";
 //string filename = "8x8BG4Map2BPP32x328PAL.sfc";
 //string filename = "8x8BGMap4BPP32x328PAL.sfc";
-//string filename = "8x8BGMap8BPP32x32.sfc";
+//std::string filename = "8x8BGMap8BPP32x32.sfc";
 //string filename = "8x8BGMap8BPP32x64.sfc";
 //string filename = "8x8BGMap8BPP64x32.sfc";
 //string filename = "8x8BGMap8BPP64x64.sfc";
@@ -52,7 +52,7 @@
 //string filename = "snestest.smc";
 
 //string filename = "HiColor575MystSub.sfc";
-string filename = "translucent.smc";
+std::string filename = "translucent.smc";
 
 bool unpaused = true;
 

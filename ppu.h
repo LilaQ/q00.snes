@@ -9,16 +9,14 @@ typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
 
-using namespace std;
-
 //	Functions
-void PPU_init(string filename);
+void PPU_init(std::string filename);
 void PPU_step(u8 steps);
 void PPU_writeVRAMhigh(u8 val, u16 adr);
 void PPU_writeVRAMlow(u8 val, u16 adr);
 u16 PPU_readVRAM(u16 adr);
 void PPU_drawFrame();
-void PPU_setTitle(string filename);
+void PPU_setTitle(std::string filename);
 u16 PPU_readCGRAM(u8 adr);
 void PPU_writeCGRAM(u8 val, u8 adr);
 void PPU_reset();
@@ -100,22 +98,6 @@ static PPU_COLOR_DEPTH PPU_BG_MODES[][4] = {
 	{PPU_COLOR_DEPTH::CD_4BPP_16_COLORS, PPU_COLOR_DEPTH::CD_2BPP_4_COLORS, PPU_COLOR_DEPTH::CD_DISABLED, PPU_COLOR_DEPTH::CD_DISABLED},				//	mode 5	-	4bpp, 2bpp, -, -		-	512-pix-hires
 	{PPU_COLOR_DEPTH::CD_4BPP_16_COLORS, PPU_COLOR_DEPTH::CD_DISABLED, PPU_COLOR_DEPTH::CD_OFFSET_PER_TILE, PPU_COLOR_DEPTH::CD_DISABLED},				//	mode 6	-	4bpp, -, OPT, -			-	512-pix plus Offset-per-Tile
 	{PPU_COLOR_DEPTH::CD_8BPP_256_COLORS, PPU_COLOR_DEPTH::CD_EXTBG, PPU_COLOR_DEPTH::CD_DISABLED, PPU_COLOR_DEPTH::CD_DISABLED}						//	mode 7	-	8bpp, EXTBG, -, -		-	Rotation/Scaling
-};
-void getPixelEXTBG(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel);
-void getPixelOPT(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel);
-void getPixelDISABLED(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel);
-void getPixel2BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel);
-void getPixel4BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel);
-void getPixel8BPP(u16 scrx, u16 scry, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u8 palette_offset, PIXEL& pixel);
-static void (*PPU_BG_MODES_FUNCTION[8][4])(u16, u16, u16, u8, u8, u16, u16, u16, u8, PIXEL&) = {
-	{getPixel2BPP, getPixel2BPP, getPixel2BPP, getPixel2BPP},
-	{getPixel4BPP, getPixel4BPP, getPixel2BPP, getPixelDISABLED},
-	{getPixel4BPP, getPixel4BPP, getPixelOPT, getPixelDISABLED},
-	{getPixel8BPP, getPixel4BPP, getPixelDISABLED, getPixelDISABLED},
-	{getPixel8BPP, getPixel2BPP, getPixelOPT, getPixelDISABLED},
-	{getPixel4BPP, getPixel2BPP, getPixelDISABLED, getPixelDISABLED},
-	{getPixel4BPP, getPixelDISABLED, getPixelOPT, getPixelDISABLED},
-	{getPixel8BPP, getPixelEXTBG, getPixelDISABLED, getPixelDISABLED}
 };
 
 struct COLOR_MATH {
