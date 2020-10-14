@@ -1853,7 +1853,6 @@ u32 ADDR_getDirectPageIndirectX() {
 }
 u32 ADDR_getDirectPageIndirectIndexedY() {
 	regs.PC++;
-	u8 dbr = regs.getDataBankRegister();
 	u8 dp_index = BUS_readFromMem(regs.PC + regs.getDirectPageRegister());
 	u16 dp_adr = (regs.getDataBankRegister() << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
@@ -1862,7 +1861,6 @@ u32 ADDR_getDirectPageIndirectIndexedY() {
 }
 u32 ADDR_getDirectPageIndirectLongIndexedY() {
 	regs.PC++;
-	u8 dbr = regs.getDataBankRegister();
 	u8 dp_index = BUS_readFromMem(regs.PC + regs.getDirectPageRegister());
 	u16 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);

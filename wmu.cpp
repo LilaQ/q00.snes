@@ -34,28 +34,22 @@ void initWindow(SDL_Window *win, std::string filename) {
 	HWND hwnd = wmInfo.info.win.window;
 	HMENU hMenuBar = CreateMenu();
 	HMENU hFile = CreateMenu();
-	HMENU hEdit = CreateMenu();
 	HMENU hHelp = CreateMenu();
-	HMENU hConfig = CreateMenu();
-	HMENU hSound = CreateMenu();
-	HMENU hPalettes = CreateMenu();
 	HMENU hDebugger = CreateMenu();
-	HMENU hSavestates = CreateMenu();
-	HMENU hVol = CreateMenu();
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hFile, "[ main ]");
 	AppendMenu(hMenuBar, MF_STRING, 11, "[ ||> un/pause ]");
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hDebugger, "[ debug ]");
 	AppendMenu(hMenuBar, MF_POPUP, (UINT_PTR)hHelp, "[ help ]");
-	AppendMenu(hFile, MF_STRING, 9, "» load rom");
-	AppendMenu(hFile, MF_STRING, 7, "» reset");
-	AppendMenu(hFile, MF_STRING, 1, "» exit");
-	AppendMenu(hHelp, MF_STRING, 3, "» about");
-	AppendMenu(hDebugger, MF_STRING, 14, "» CGRAM");
-	AppendMenu(hDebugger, MF_STRING, 5, "» VRAM");
-	AppendMenu(hDebugger, MF_STRING, 3, "» BG1");
-	AppendMenu(hDebugger, MF_STRING, 4, "» BG2");
-	AppendMenu(hDebugger, MF_STRING, 6, "» BG3");
-	AppendMenu(hDebugger, MF_STRING, 8, "» BG4");
+	AppendMenu(hFile, MF_STRING, 9, "load rom");
+	AppendMenu(hFile, MF_STRING, 7, "reset");
+	AppendMenu(hFile, MF_STRING, 1, "exit");
+	AppendMenu(hHelp, MF_STRING, 3, "about");
+	AppendMenu(hDebugger, MF_STRING, 14, "CGRAM");
+	AppendMenu(hDebugger, MF_STRING, 5, "VRAM");
+	AppendMenu(hDebugger, MF_STRING, 3, "BG1");
+	AppendMenu(hDebugger, MF_STRING, 4, "BG2");
+	AppendMenu(hDebugger, MF_STRING, 6, "BG3");
+	AppendMenu(hDebugger, MF_STRING, 8, "BG4");
 	SetMenu(hwnd, hMenuBar);
 
 	//	Enable WM events for SDL Window
@@ -230,7 +224,6 @@ void showCGRAMMap() {
 	}
 
 	const TCHAR* text = s.c_str();
-	HDC wdc = GetWindowDC(hScroll);
 	HFONT font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
 	LOGFONT lf;
 	GetObject(font, sizeof(LOGFONT), &lf);
@@ -300,7 +293,6 @@ void showVRAMMap() {
 	}
 
 	const TCHAR* text = s.c_str();
-	HDC wdc = GetWindowDC(hScroll);
 	HFONT font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
 	LOGFONT lf;
 	GetObject(font, sizeof(LOGFONT), &lf);

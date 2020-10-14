@@ -80,7 +80,7 @@ struct PIXEL {
 	u8 priority = 0;		//	1 - high priority, 0 - low priority; OBJ have 2-bit priority, from 0 (lowest) to 3 (highest)
 };
 
-const enum class PPU_COLOR_DEPTH {
+enum class PPU_COLOR_DEPTH {
 	CD_2BPP_4_COLORS,
 	CD_4BPP_16_COLORS,
 	CD_8BPP_256_COLORS,
@@ -169,7 +169,6 @@ static PIXEL& getPixelByPriority(u8 bg_mode, PIXEL& bg1, PIXEL& bg2, PIXEL& bg3,
 		else if (obj.priority == 0 && (obj.color & 1) == 1) return obj;
 		else if (bg3.priority == 0 && (bg3.color & 1) == 1)	return bg3;
 		else if (bg4.priority == 0 && (bg4.color & 1) == 1)	return bg4;
-		return backdrop_fixedcolor;
 		break;
 	case 1:
 		if (bg3.priority == 1 && bg3_priority && (bg3.color & 1) == 1) return bg3;
@@ -183,7 +182,6 @@ static PIXEL& getPixelByPriority(u8 bg_mode, PIXEL& bg1, PIXEL& bg2, PIXEL& bg3,
 		else if (bg3.priority == 1 && !bg3_priority && (bg3.color & 1) == 1) return bg3;
 		else if (obj.priority == 0 && (obj.color & 1) == 1) return obj;
 		else if (bg3.priority == 0 && (bg3.color & 1) == 1)	return bg3;
-		return backdrop_fixedcolor;
 		break;
 	case 2:
 		if (obj.priority == 3 && (obj.color & 1) == 1)	return obj;
@@ -194,7 +192,6 @@ static PIXEL& getPixelByPriority(u8 bg_mode, PIXEL& bg1, PIXEL& bg2, PIXEL& bg3,
 		else if (bg1.priority == 0 && (bg1.color & 1) == 1)	return bg1;
 		else if (obj.priority == 0 && (obj.color & 1) == 1) return obj;
 		else if (bg2.priority == 0 && (bg2.color & 1) == 1)	return bg2;
-		return backdrop_fixedcolor;
 		break;
 	case 3:
 	case 4:
@@ -207,7 +204,6 @@ static PIXEL& getPixelByPriority(u8 bg_mode, PIXEL& bg1, PIXEL& bg2, PIXEL& bg3,
 		else if (bg1.priority == 0 && (bg1.color & 1) == 1)	return bg1;
 		else if (obj.priority == 0 && (obj.color & 1) == 1) return obj;
 		else if (bg2.priority == 0 && (bg2.color & 1) == 1)	return bg2;
-		return backdrop_fixedcolor;
 		break;
 	case 6:
 		if (obj.priority == 3 && (obj.color & 1) == 1)	return obj;
@@ -216,7 +212,6 @@ static PIXEL& getPixelByPriority(u8 bg_mode, PIXEL& bg1, PIXEL& bg2, PIXEL& bg3,
 		else if (obj.priority == 1 && (obj.color & 1) == 1) return obj;
 		else if (bg1.priority == 0 && (bg1.color & 1) == 1)	return bg1;
 		else if (obj.priority == 0 && (obj.color & 1) == 1) return obj;
-		return backdrop_fixedcolor;
 		break;
 	case 7:
 		if (obj.priority == 3 && (obj.color & 1) == 1)	return obj;
@@ -226,10 +221,10 @@ static PIXEL& getPixelByPriority(u8 bg_mode, PIXEL& bg1, PIXEL& bg2, PIXEL& bg3,
 		else if ((bg1.color & 1) == 1) return bg1;
 		else if (obj.priority == 0 && (obj.color & 1) == 1) return obj;
 		else if (bg2.priority == 0 && (bg2.color & 1) == 1)	return bg2;
-		return backdrop_fixedcolor;
 		break;
 	default: break;
 	}
+	return backdrop_fixedcolor;
 }
 
 

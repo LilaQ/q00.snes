@@ -231,7 +231,6 @@ void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 b
 		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
-	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
 	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
@@ -258,7 +257,6 @@ void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
-	const u8 b_priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
 	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
@@ -291,7 +289,6 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u16 tile_base_adr = bg_base + offset;
 	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
-	const u8 b_priority = (VRAM[tile_base_adr] >> 13) & 1;				//	0 - lower, 1 - higher
 	const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
 	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
@@ -403,25 +400,33 @@ const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
 						((scrolled_x & 0b1111'1111) / 8);
 	const u16 tile_base_adr = bg_base + offset;
-	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
-	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
-	const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u16 fByte = VRAM[tile_base_adr];
+	const u16 tile_id = fByte & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (fByte >> 10) & 0b111;
+	const u8 b_flip_x = (fByte >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (fByte >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scrolled_y & 0b111;
 	const u8 j = scrolled_x & 0b111;
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
 	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
 	const u16 tile_address = tile_id * 32 + tile_base + v_shift;
-	const u16 v = (((VRAM[tile_address] & 0xff) >> h_shift) & 1) +
-		(2 * (((VRAM[tile_address] >> 8) >> h_shift) & 1)) +
-		(4 * (((VRAM[tile_address + 8] & 0xff) >> h_shift) & 1)) +
-		(8 * (((VRAM[tile_address + 8] >> 8) >> h_shift) & 1)) +
-		(16 * (((VRAM[tile_address + 16] & 0xff) >> h_shift) & 1)) +
-		(32 * (((VRAM[tile_address + 16] >> 8) >> h_shift) & 1)) +
-		(64 * (((VRAM[tile_address + 24] & 0xff) >> h_shift) & 1)) +
-		(128 * (((VRAM[tile_address + 24] >> 8) >> h_shift) & 1));
+
+	const u16 byte1 = VRAM[tile_address];
+	const u16 byte2 = VRAM[tile_address + 8];
+	const u16 byte3 = VRAM[tile_address + 16];
+	const u16 byte4 = VRAM[tile_address + 24];
+
+	const u16 v = (((byte1 & 0xff) >> h_shift) & 1) +
+		(2 * (((byte1 >> 8) >> h_shift) & 1)) +
+		(4 * (((byte2 & 0xff) >> h_shift) & 1)) +
+		(8 * (((byte2 >> 8) >> h_shift) & 1)) +
+		(16 * (((byte3 & 0xff) >> h_shift) & 1)) +
+		(32 * (((byte3 >> 8) >> h_shift) & 1)) +
+		(64 * (((byte4 & 0xff) >> h_shift) & 1)) +
+		(128 * (((byte4 >> 8) >> h_shift) & 1));
+
 	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset);
-	pixel.priority = (VRAM[tile_base_adr] >> 13) & 1;				//	0 - lower, 1 - higher
+	pixel.priority = (fByte >> 13) & 1;				//	0 - lower, 1 - higher
 }
 const void getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
 	//const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
@@ -589,69 +594,54 @@ void PPU_step(u8 steps) {
 			default: break;
 			}
 			
-			//	split source pixel to main screen and sub screen
-			main_pixel_bg1 = src_pixel_bg1;
-			main_pixel_bg2 = src_pixel_bg2;
-			main_pixel_bg3 = src_pixel_bg3;
-			main_pixel_bg4 = src_pixel_bg4;
-			main_pixel_obj = src_pixel_obj;
-			sub_pixel_bg1 = src_pixel_bg1;
-			sub_pixel_bg2 = src_pixel_bg2;
-			sub_pixel_bg3 = src_pixel_bg3;
-			sub_pixel_bg4 = src_pixel_bg4;
-			sub_pixel_obj = src_pixel_obj;
-
-			//	if not enabled, make pixel transparent
-			if(!window.tm[0])
-				main_pixel_bg1.color = 0;
-			if (!window.tm[1])
-				main_pixel_bg2.color = 0;
-			if (!window.tm[2])
-				main_pixel_bg3.color = 0;
-			if (!window.tm[3])
-				main_pixel_bg4.color = 0;
-			if (!window.tm[4])
-				main_pixel_obj.color = 0;
-			if (!window.ts[0])
-				sub_pixel_bg1.color = 0;
-			if (!window.ts[1])
-				sub_pixel_bg2.color = 0;
-			if (!window.ts[2])
-				sub_pixel_bg3.color = 0;
-			if (!window.ts[3])
-				sub_pixel_bg4.color = 0;
-			if (!window.ts[4])
-				sub_pixel_obj.color = 0;
-
-
 			//	pipe the window in, pixel again will become transparent of not enabled at this point
-			if(!(MainWinBG1 || (!window.w1en[0] && !window.w2en[0])))
+			if(!(MainWinBG1 || (!window.w1en[0] && !window.w2en[0])) || !window.tm[0])
 				main_pixel_bg1.color = 0;
-			if (!(MainWinBG2 || (!window.w1en[1] && !window.w2en[1])))
+			else 
+				main_pixel_bg1 = src_pixel_bg1;
+			if (!(MainWinBG2 || (!window.w1en[1] && !window.w2en[1])) || !window.tm[1])
 				main_pixel_bg2.color = 0;
-			if (!(MainWinBG3 || (!window.w1en[2] && !window.w2en[2])))
+			else
+				main_pixel_bg2 = src_pixel_bg2;
+			if (!(MainWinBG3 || (!window.w1en[2] && !window.w2en[2])) || !window.tm[2])
 				main_pixel_bg3.color = 0;
-			if (!(MainWinBG4 || (!window.w1en[3] && !window.w2en[3])))
+			else
+				main_pixel_bg3 = src_pixel_bg3;
+			if (!(MainWinBG4 || (!window.w1en[3] && !window.w2en[3])) || !window.tm[3])
 				main_pixel_bg4.color = 0;
-			if (!(MainWinOBJ || (!window.w1en[4] && !window.w2en[4])))
+			else
+				main_pixel_bg4 = src_pixel_bg4;
+			if (!(MainWinOBJ || (!window.w1en[4] && !window.w2en[4])) || !window.tm[4])
 				main_pixel_obj.color = 0;
-			if(!(SubWinBG1 || (!window.w1en[0] && !window.w2en[0])))
+			else
+				main_pixel_obj = src_pixel_obj;
+			if(!(SubWinBG1 || (!window.w1en[0] && !window.w2en[0])) || !window.ts[0])
 				sub_pixel_bg1.color = 0;
-			if (!(SubWinBG2 || (!window.w1en[1] && !window.w2en[1])))
+			else
+				sub_pixel_bg1 = src_pixel_bg1;
+			if (!(SubWinBG2 || (!window.w1en[1] && !window.w2en[1])) || !window.ts[1])
 				sub_pixel_bg2.color = 0;
-			if (!(SubWinBG3 || (!window.w1en[2] && !window.w2en[2])))
+			else
+				sub_pixel_bg2 = src_pixel_bg2;
+			if (!(SubWinBG3 || (!window.w1en[2] && !window.w2en[2])) || !window.ts[2])
 				sub_pixel_bg3.color = 0;
-			if (!(SubWinBG4 || (!window.w1en[3] && !window.w2en[3])))
+			else
+				sub_pixel_bg3 = src_pixel_bg3;
+			if (!(SubWinBG4 || (!window.w1en[3] && !window.w2en[3])) || !window.ts[3])
 				sub_pixel_bg4.color = 0;
-			if (!(SubWinOBJ || (!window.w1en[4] && !window.w2en[4])))
+			else
+				sub_pixel_bg4 = src_pixel_bg4;
+			if (!(SubWinOBJ || (!window.w1en[4] && !window.w2en[4])) || !window.ts[4])
 				sub_pixel_obj.color = 0;
+			else
+				sub_pixel_obj = src_pixel_obj;
 
 			//	main priority circuit
 			PIXEL p_main = getPixelByPriority(BG_MODE_ID, main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj, backdrop_pixel, BG3_PRIORITY);
 			PIXEL p_sub = (window.fixSub == 0) ? fixedcolor_pixel : getPixelByPriority(BG_MODE_ID, sub_pixel_bg1, sub_pixel_bg2, sub_pixel_bg3, sub_pixel_bg4, sub_pixel_obj, fixedcolor_pixel, BG3_PRIORITY);
 		
-			p_main.color &= ~window.mainSW(SELMux);
-			p_sub.color &= ~window.subSW(SELMux);
+			p_main.color &= ~(u16)window.mainSW(SELMux);
+			p_sub.color &= ~(u16)window.subSW(SELMux);
 
 			u8 sr = (p_main.color >> 1) & 0b11111;
 			u8 sg = (p_main.color >> 6) & 0b11111;

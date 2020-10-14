@@ -566,7 +566,7 @@ void BUS_startDMA() {
 			u8 dma_mode = (val & 0b111);
 			u32 cpu_address = (memory[0x4304 + (dma_id * 0x10)] << 16) | (memory[0x4303 + (dma_id * 0x10)] << 8) | memory[0x4302 + (dma_id * 0x10)];
 			u16 bytes = (memory[0x4306 + (dma_id * 0x10)] << 8) | memory[0x4305 + (dma_id * 0x10)];
-			while (bytes = BUS_DMAtransfer(dma_id, dma_mode, dma_dir, dma_step, cpu_address, io_address, bytes)) {}
+			while ((bytes = BUS_DMAtransfer(dma_id, dma_mode, dma_dir, dma_step, cpu_address, io_address, bytes))) {}
 		}
 	}
 	//	reset DMA-start register
@@ -574,7 +574,6 @@ void BUS_startDMA() {
 }
 
 void BUS_startHDMA() {
-	u8 dma_id = 0;
 	for (u8 dma_id = 0; dma_id < 8; dma_id++) {
 		if (HDMAS[dma_id].enabled && !HDMAS[dma_id].terminated) {
 			if (--HDMAS[dma_id].line_counter == 0) {
@@ -598,7 +597,6 @@ void BUS_startHDMA() {
 }
 
 void BUS_resetHDMA() {
-	u8 dma_id = 0;
 	for (u8 dma_id = 0; dma_id < 8; dma_id++) {
 		if (HDMAS[dma_id].enabled) {
 			HDMAS[dma_id].terminated = false;
