@@ -214,8 +214,8 @@ void writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u8 _r, 
 }
 
 inline u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
-	if (id == 0) return 0x00000000;	//	id 0 = transparency
-	return CGRAM[(id + palette * (bpp * bpp)) + palette_offset] << 1 | 1;
+	//if (id == 0) return 0x00000000;	//	id 0 = transparency
+	return CGRAM[(id + palette * bpp) + palette_offset] << 1 | (id > 0);
 }
 
 void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
@@ -241,7 +241,7 @@ void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u8 b_hi = VRAM[tile_address] >> 8;
 	const u8 b_lo = VRAM[tile_address] & 0xff;
 	const u8 v = ((b_lo >> h_shift) & 1) + (2 * ((b_hi >> h_shift) & 1));
-	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset);
+	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
 	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
 void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
@@ -272,7 +272,7 @@ void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(2 * ((b_2 >> h_shift) & 1)) +
 					(4 * ((b_3 >> h_shift) & 1)) +
 					(8 * ((b_4 >> h_shift) & 1));
-	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
 	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
 void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
@@ -287,10 +287,11 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 		(scrx / 256) * 0x400 +
 		(bg_size_w / 64) * ((scry / 256) * 0x800);
 	const u16 tile_base_adr = bg_base + offset;
-	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
-	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
-	const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u16 fByte = VRAM[tile_base_adr];
+	const u16 tile_id = fByte & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (fByte >> 10) & 0b111;
+	const u8 b_flip_x = (fByte >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (fByte >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
@@ -312,7 +313,7 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 					(32 *	((b_6 >> h_shift) & 1)) +
 					(64 *	((b_7 >> h_shift) & 1)) +
 					(128 *	((b_8 >> h_shift) & 1));
-	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset);
+	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
 	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
 
@@ -324,77 +325,26 @@ const void getPixelOPT(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u16& bg
 const void getPixelDISABLED(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 }
 const void getPixel2BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
-	//const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
-	//const u16 orgy = scry;
-	//scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
-	//scrx = (scrx + scroll_x) % (8 * bg_size_w);
-	//const u16 offset =
-	//	(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
-	//	((scrx % 256) / 8) +
-	//	(scrx / 256) * 0x400 +
-	//	(bg_size_w / 64) * ((scry / 256) * 0x800);
-	//const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
-	//const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
-	//const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	//const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
-	//const u8 i = scry % 8;
-	//const u8 j = scrx % 8;
-	//const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
-	//const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
-	//const u16 tile_address = tile_id * 8 + tile_base + v_shift;	
-	//const u8 v = 2 * (((VRAM[tile_address] >> 8) >> h_shift) & 1) + ((((VRAM[tile_address] & 0xff) >> h_shift) & 1));
-	//pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset);
-	//pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;				//	0 - lower, 1 - higher
-
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
 	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
 						((scrolled_x & 0b1111'1111) / 8);
-	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
-	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
-	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u16 fByte = VRAM[bg_base + offset];
+	const u16 tile_id = fByte & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (fByte >> 10) & 0b111;
+	const u8 b_flip_x = (fByte >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (fByte >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scrolled_y & 0b111;
 	const u8 j = scrolled_x & 0b111;
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
 	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
 	const u16 tile_address = tile_id * 8 + tile_base + v_shift;	
-	const u8 v = 2 * (((VRAM[tile_address] >> 8) >> h_shift) & 1) + ((((VRAM[tile_address] & 0xff) >> h_shift) & 1));
-	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 2, palette_offset);
-	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;				//	0 - lower, 1 - higher
+	const u16 byte = VRAM[tile_address];
+	const u8 v = 2 * (((byte >> 8) >> h_shift) & 1) + ((((byte & 0xff) >> h_shift) & 1));
+	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	pixel.priority = (fByte >> 13) & 1;				//	0 - lower, 1 - higher
 }
 const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
-	//const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
-	//const u16 orgy = scry;
-	//scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
-	//scrx = (scrx + scroll_x) % (8 * bg_size_w);
-	//const u16 offset = 
-	//	(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
-	//	((scrx % 256) / 8) +
-	//	(scrx / 256) * 0x400 +
-	//	(bg_size_w / 64) * ((scry / 256) * 0x800);
-	//const u16 tile_base_adr = bg_base + offset;
-	//const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
-	//const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
-	//const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	//const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
-	//const u8 i = scry % 8;
-	//const u8 j = scrx % 8;
-	//const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
-	//const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
-	//const u16 tile_address = tile_id * 32 + tile_base + v_shift;
-	//const u16 v = (((VRAM[tile_address] & 0xff)			>> h_shift) & 1) +
-	//	(2		* (((VRAM[tile_address] >> 8)			>> h_shift) & 1)) +
-	//	(4		* (((VRAM[tile_address + 8] & 0xff)		>> h_shift) & 1)) +
-	//	(8		* (((VRAM[tile_address + 8] >> 8)		>> h_shift) & 1)) +
-	//	(16		* (((VRAM[tile_address + 16] & 0xff)	>> h_shift) & 1)) +
-	//	(32		* (((VRAM[tile_address + 16] >> 8)		>> h_shift) & 1)) +
-	//	(64		* (((VRAM[tile_address + 24] & 0xff)	>> h_shift) & 1)) +
-	//	(128	* (((VRAM[tile_address + 24] >> 8)		>> h_shift) & 1));
-	//pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset);
-	//pixel.priority = (VRAM[tile_base_adr] >> 13) & 1;				//	0 - lower, 1 - higher
-
-
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
 	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
@@ -410,50 +360,22 @@ const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
 	const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
 	const u16 tile_address = tile_id * 32 + tile_base + v_shift;
-
 	const u16 byte1 = VRAM[tile_address];
 	const u16 byte2 = VRAM[tile_address + 8];
 	const u16 byte3 = VRAM[tile_address + 16];
 	const u16 byte4 = VRAM[tile_address + 24];
-
 	const u16 v = (((byte1 & 0xff) >> h_shift) & 1) +
-		(2 * (((byte1 >> 8) >> h_shift) & 1)) +
-		(4 * (((byte2 & 0xff) >> h_shift) & 1)) +
-		(8 * (((byte2 >> 8) >> h_shift) & 1)) +
-		(16 * (((byte3 & 0xff) >> h_shift) & 1)) +
-		(32 * (((byte3 >> 8) >> h_shift) & 1)) +
-		(64 * (((byte4 & 0xff) >> h_shift) & 1)) +
-		(128 * (((byte4 >> 8) >> h_shift) & 1));
-
-	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 8, palette_offset);
+		((((byte1 >> 8) >> h_shift) & 1) << 1) +
+		((((byte2 & 0xff) >> h_shift) & 1) << 2) +
+		((((byte2 >> 8) >> h_shift) & 1) << 3) +
+		((((byte3 & 0xff) >> h_shift) & 1) << 4) +
+		((((byte3 >> 8) >> h_shift) & 1) << 5) +
+		((((byte4 & 0xff) >> h_shift) & 1) << 6) +
+		((((byte4 >> 8) >> h_shift) & 1) << 7);
+	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
 	pixel.priority = (fByte >> 13) & 1;				//	0 - lower, 1 - higher
 }
 const void getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
-	//const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
-	//const u16 orgy = scry;
-	//scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
-	//scrx = (scrx + scroll_x) % (8 * bg_size_w);
-	//const u16 offset =
-	//	(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
-	//	((scrx % 256) / 8) +
-	//	(scrx / 256) * 0x400 +
-	//	(bg_size_w / 64) * ((scry / 256) * 0x800);
-	//const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
-	//const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
-	//const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	//const u8 b_flip_y = (VRAM[bg_base + offset] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
-	//const u8 i = scry % 8;
-	//const u8 j = scrx % 8;
-	//const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
-	//const u8 h_shift = (7 - j) + (2 * j - 7) * b_flip_x;
-	//const u16 tile_address = tile_id * 16 + tile_base + v_shift;		//	this doesn't have tile_base like 8bpp, fix?
-	//const u16 v =	(((VRAM[tile_address] & 0xff)		>> h_shift) & 1) +
-	//				((((VRAM[tile_address] >> 8)		>> h_shift) & 1) << 1) +
-	//				((((VRAM[tile_address + 8] & 0xff)	>> h_shift) & 1) << 2) +
-	//				((((VRAM[tile_address + 8] >> 8)	>> h_shift) & 1) << 3);
-	//pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
-	//pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
-
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
 	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
@@ -471,13 +393,12 @@ const void getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 					((((VRAM[tile_address] >> 8)		>> h_shift) & 1) << 1) +
 					((((VRAM[tile_address + 8] & 0xff)	>> h_shift) & 1) << 2) +
 					((((VRAM[tile_address + 8] >> 8)	>> h_shift) & 1) << 3);
-	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
 	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 }
 
 template <u8 mode_id>
 void getPixel() {
-	src_pixel_obj.color = 0;
 	if constexpr (mode_id == 0) {
 		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
 		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
@@ -539,7 +460,7 @@ void PPU_step(u8 steps) {
 				BUS_resetHDMA();					//	A new frame will begin, we can safely reset our HDMAs now
 			}
 		}
-		if (RENDER_X < 256 && RENDER_Y < 241) {		//	Only render current pixel(s) if we're not in any blanking period
+		if (RENDER_Y < 241 && RENDER_X < 256) {		//	Only render current pixel(s) if we're not in any blanking period
 
 			const bool in_W1 = window.W1_LEFT <= RENDER_X && RENDER_X <= window.W1_RIGHT;
 			const bool in_W2 = window.W2_LEFT <= RENDER_X && RENDER_X <= window.W2_RIGHT;
@@ -671,7 +592,7 @@ void PPU_step(u8 steps) {
 			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, sr, sg, sb, 1);
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
-			INPUT_stepJoypadAutoread();
+			//INPUT_stepJoypadAutoread();
 			PPU_drawFrame();
 		}
 		
