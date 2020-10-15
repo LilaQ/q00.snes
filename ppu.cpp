@@ -9,6 +9,7 @@
 #include "wmu.h"
 #include "cpu.h"
 #include "input.h"
+#include "main.h"
 #ifdef _WIN32
 	#include <Windows.h>
 	#include <WinUser.h>
@@ -118,7 +119,7 @@ void PPU_init(std::string filename) {
 	SDL_CreateWindowAndRenderer(256, 239, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC, &sdl_window, &renderer);
 	SDL_SetWindowSize(sdl_window, 256 * 2, 239 * 2);
 	//	init and create window and renderer
-	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, 0);
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	//SDL_SetWindowSize(window, 512, 478);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
 	SDL_SetWindowResizable(sdl_window, SDL_TRUE);
@@ -127,10 +128,6 @@ void PPU_init(std::string filename) {
 	FULL_CALC_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 	initWindow(sdl_window, filename);
 
-}
-
-void PPU_setTitle(std::string filename) {
-	SDL_SetWindowTitle(sdl_window, filename.c_str());
 }
 
 void PPU_reset() {
@@ -451,7 +448,8 @@ void PPU_step(u8 steps) {
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::set(Interrupts::NMI);
-				printf("VBlank %d\n", ++vbl);
+				//printf("VBlank %d\n", ++vbl);
+				frameRendered();
 			}
 			else if (RENDER_Y == 312) {				//	PAL System has 312 lines
 				RENDER_Y = 0;
@@ -572,19 +570,14 @@ void PPU_step(u8 steps) {
 			u8 db = (p_sub.color >> 11) & 0b11111;
 			if (window.mathEn[p_main.id]) {
 				if (window.add_sub) {					//	Subtract
-					sr = max(sr - dr, 0);
-					sg = max(sg - dg, 0);
-					sb = max(sb - db, 0);
+					sr = max(sr - dr, 0) >> window.halfEn;
+					sg = max(sg - dg, 0) >> window.halfEn;
+					sb = max(sb - db, 0) >> window.halfEn;
 				}
 				else {									//	Add
-					sr = min(sr + dr, 0x1f);
-					sg = min(sg + dg, 0x1f);
-					sb = min(sb + db, 0x1f);
-				}
-				if (window.halfEn) {					//	Divide result by 2
-					sr >>= 1;
-					sg >>= 1;
-					sb >>= 1;
+					sr = min(sr + dr, 0x1f) >> window.halfEn;
+					sg = min(sg + dg, 0x1f) >> window.halfEn;
+					sb = min(sb + db, 0x1f) >> window.halfEn;
 				}
 			}
 
@@ -592,7 +585,7 @@ void PPU_step(u8 steps) {
 			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, sr, sg, sb, 1);
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
-			//INPUT_stepJoypadAutoread();
+			INPUT_stepJoypadAutoread();
 			PPU_drawFrame();
 		}
 		
@@ -785,7 +778,7 @@ void PPU_writeBGScrollX(u8 bg_id, u8 val) {
 		BGSCROLLX_Flipflop[bg_id] = false;
 		//printf("High %x Write BG ScrollX: %x\n", val, BGSCROLLX[bg_id]);
 	}
-	//printf("%d\n", BGSCROLLX[bg_id]);
+	printf("%d\n", BGSCROLLX[bg_id]);
 }
 
 void PPU_writeBGScrollY(u8 bg_id, u8 val) {

@@ -19,11 +19,12 @@
 
 SDL_Window* mainWindow;				//	Main Window
 SDL_Event event;					//	Eventhandler for all SDL events
+std::string rom;
 
 void initWindow(SDL_Window *win, std::string filename) {
 	mainWindow = win;
-	char title[50];
-	std::string rom = filename;
+	char title[70];
+	rom = filename;
 	if (filename.find_last_of("\\") != std::string::npos)
 		rom = filename.substr(filename.find_last_of("\\") + 1);
 	snprintf(title, sizeof title, "[ q00.snes ][ rom: %s ]", rom.c_str());
@@ -54,6 +55,17 @@ void initWindow(SDL_Window *win, std::string filename) {
 
 	//	Enable WM events for SDL Window
 	SDL_EventState(SDL_SYSWMEVENT, SDL_ENABLE);
+}
+
+void setTitle(std::string filename) {
+	std::size_t i = filename.find_last_of("\\");
+	rom = filename.substr(i+1);
+}
+
+void setFPS(u16 fps) {
+	char title[70];
+	snprintf(title, sizeof title, "[ q00.snes ][ rom: %s ][ fps: %d ]", rom.c_str(), fps);
+	SDL_SetWindowTitle(mainWindow, title);
 }
 
 void handleWindowEvents() {

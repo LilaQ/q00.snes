@@ -57,10 +57,12 @@ bool unpaused = true;
 
 int lastcyc = 0;
 int ppus = 0;
+int frames = 0;
 
 u16 w = 0;
 u16 ppu_cycles_left;
 u16 delay = 0;
+
 
 int main()
 {
@@ -71,16 +73,30 @@ int main()
 	PPU_init(filename);
 	initAPU();
 
+	frames = 0;
+	auto last_second = std::chrono::high_resolution_clock::now();
+	auto last_time = std::chrono::high_resolution_clock::now();
+
 	while (1) {
 
 		if (unpaused) {
+
+			//	FPS counter
+			const auto current_time = std::chrono::high_resolution_clock::now();
+			const auto second_duration = std::chrono::duration_cast<std::chrono::microseconds>(current_time - last_second).count();
+			const float fps = (1000000.0f * float(frames)) / float(second_duration);
+			if (second_duration >= 1000000) {
+				last_second = current_time;
+				frames = 0;
+				setFPS(u16(fps));
+			}
+			last_time = current_time;
+
+			// execute CPU, PPU, APU
 			lastcyc = CPU_step();
-			w += lastcyc * 6;				//	6 because we assume FastROM for every access for now, and we want to calculate the emulator in Master Cycles
-			
 			ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
-			PPU_step( ppu_cycles_left / 4);
-			ppu_cycles_left -= (ppu_cycles_left / 4);
-			//this_thread::sleep_for(chrono::nanoseconds(5));
+			PPU_step( ppu_cycles_left >> 2);
+			ppu_cycles_left -= (ppu_cycles_left >> 2);
 
 			//stepAPU(lastcyc);
 			
@@ -90,6 +106,10 @@ int main()
 	}
 
 	return 1;
+}
+
+void frameRendered() {
+	frames++;
 }
 
 int getLastCyc() {

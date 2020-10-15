@@ -11,6 +11,7 @@
 #include "ppu.h"
 #include "apu.h"
 #include "input.h"
+#include "wmu.h"
 
 typedef uint8_t		u8;
 typedef uint16_t	u16;
@@ -24,7 +25,7 @@ std::vector<u8> cartridge_memory;
 DMA HDMAS[8];
 
 void BUS_reset(std::string filename) {
-	PPU_setTitle(filename);
+	setTitle(filename);
 	BUS_reset();
 }
 

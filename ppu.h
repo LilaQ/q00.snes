@@ -16,7 +16,6 @@ void PPU_writeVRAMhigh(u8 val, u16 adr);
 void PPU_writeVRAMlow(u8 val, u16 adr);
 u16 PPU_readVRAM(u16 adr);
 void PPU_drawFrame();
-void PPU_setTitle(std::string filename);
 u16 PPU_readCGRAM(u8 adr);
 void PPU_writeCGRAM(u8 val, u8 adr);
 void PPU_reset();
