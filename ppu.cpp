@@ -42,10 +42,9 @@ PPU_COLOR_DEPTH *BG_MODE = new PPU_COLOR_DEPTH[4]();
 u8 BG_MODE_ID = 0;
 
 //	BG Scrolling
-bool BGSCROLLX_Flipflop[4] = { false, false, false, false };
-bool BGSCROLLY_Flipflop[4] = { false, false, false, false };
 u16 BGSCROLLX[4] = { 0, 0, 0, 0 };
 u16 BGSCROLLY[4] = { 0, 0, 0, 0 };
+u8 BGSCROLL_L1, BGSCROLL_L2;
 
 //	BG Tilebase
 u16 BG_TILEBASE[5] = { 0, 0, 0, 0 };
@@ -153,14 +152,6 @@ void PPU_reset() {
 	window.subSW = _always;
 	backdrop_pixel.color = 0x0001;
 	fixedcolor_pixel.color = 0x0001;
-	BGSCROLLX_Flipflop[0] = false;
-	BGSCROLLX_Flipflop[1] = false;
-	BGSCROLLX_Flipflop[2] = false;
-	BGSCROLLX_Flipflop[3] = false;
-	BGSCROLLY_Flipflop[0] = false;
-	BGSCROLLY_Flipflop[1] = false;
-	BGSCROLLY_Flipflop[2] = false;
-	BGSCROLLY_Flipflop[3] = false;
 	BGSCROLLX[0] = 0;
 	BGSCROLLX[1] = 0;
 	BGSCROLLX[2] = 0;
@@ -768,29 +759,14 @@ void PPU_writeBGTilebase(u8 bg_id, u8 val) {
 }
 
 void PPU_writeBGScrollX(u8 bg_id, u8 val) {
-	if (!BGSCROLLX_Flipflop[bg_id]) {
-		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0xff00) | val;
-		BGSCROLLX_Flipflop[bg_id] = true;
-		//printf("Low %x Write BG ScrollX: %x\n", val, BGSCROLLX[bg_id]);
-	}
-	else {
-		BGSCROLLX[bg_id] = (BGSCROLLX[bg_id] & 0xff) | (val << 8);
-		BGSCROLLX_Flipflop[bg_id] = false;
-		//printf("High %x Write BG ScrollX: %x\n", val, BGSCROLLX[bg_id]);
-	}
-	printf("%d\n", BGSCROLLX[bg_id]);
+	BGSCROLLX[bg_id] = (val << 8) | (BGSCROLL_L1 & ~7) | (BGSCROLL_L2);
+	BGSCROLL_L1 = val;
+	BGSCROLL_L2 = val;
 }
 
 void PPU_writeBGScrollY(u8 bg_id, u8 val) {
-	if (!BGSCROLLY_Flipflop[bg_id]) {
-		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0xff00) | val;
-		BGSCROLLY_Flipflop[bg_id] = true;
-	}
-	else {
-		BGSCROLLY[bg_id] = (BGSCROLLY[bg_id] & 0xff) | (val << 8);
-		BGSCROLLY_Flipflop[bg_id] = false;
-		//printf("Write BG ScrollY: %x\n", BGSCROLLY[bg_id]);
-	}
+	BGSCROLLY[bg_id] = (val << 8) | BGSCROLL_L1;
+	BGSCROLL_L1 = val;
 }
 
 void PPU_setMosaic(u8 val) {
