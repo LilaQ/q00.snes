@@ -53,6 +53,9 @@ struct Registers
 				bool E = true;	//	6502 Emulation mode	
 
 			public:
+
+
+
 				u8 getByte() {
 					//	NOT emulation mode
 					if (!E) {
@@ -132,8 +135,9 @@ struct Registers
 				void setBreak(u8 val) {
 					B = val & 1;
 				}
-				void setEmulation(u8 val) {
+				void setEmulation(u8 val, Registers &regs) {
 					E = val & 1;
+					regs.PB = 0x00;
 				}
 
 				//	helper, to reduce clutter
@@ -145,11 +149,6 @@ struct Registers
 				}
 		};
 
-		u8 A_lo = 0;	//	Accumulator - low-byte
-		u8 A_hi = 0;	//	Accumulator - high-byte
-		u8 DBR = 0;		//	Data Bank Register
-		u16 D = 0;		//	Direct Page Register
-		u8 PB = 0;		//	Program Bank Register
 		u8 X_lo = 0;	//	index X - low byte
 		u8 X_hi = 0;	//	index X - high byte
 		u8 Y_lo = 0;	//	index Y - low byte
@@ -157,9 +156,14 @@ struct Registers
 		u16 SP = 0;		//	Stack Pointer
 
 	public:
-
-		Status P;	//	Program Status
-		u16 PC;		//	Program Counter
+		
+		u8 A_lo = 0;	//	Accumulator - low-byte
+		u8 A_hi = 0;	//	Accumulator - high-byte
+		u8 PB = 0;		//	Program Bank Register
+		u8 DBR = 0;		//	Data Bank Register
+		u16 D = 0;		//	Direct Page Register
+		Status P;		//	Program Status
+		u16 PC;			//	Program Counter
 
 		//	8-bit / 16-bit wide Accumulator templates (getter / setter)
 		void setAccumulator(u16 val) {
@@ -169,11 +173,8 @@ struct Registers
 		void setAccumulator(u8 val) {
 			A_lo = val;
 		}
-		u16 getAccumulator() {
-			//if (!P.getEmulation()) {
-				return (A_hi << 8) | A_lo;
-			//}
-			//return A_lo;
+		inline u16 getAccumulator() {
+			return (A_hi << 8) | A_lo;
 		}
 		//	8-bit / 16-bit wide X-Index templates (getter / setter)
 		void setX(u16 val) {
@@ -218,21 +219,6 @@ struct Registers
 		void clearXYhighBytesOnModeChange() {
 			Y_hi = 0x00;
 			X_hi = 0x00;
-		}
-		u8 getProgramBankRegister() {
-			if (P.getEmulation()) {
-				return 0x00;
-			}
-			return PB;
-		}
-		u8 getDataBankRegister() {
-			if (P.getEmulation()) {
-				return 0x00;
-			}
-			return DBR;
-		}
-		u16 getDirectPageRegister() {
-			return D;
 		}
 		void setProgramBankRegister(u8 val) {
 			PB = val;

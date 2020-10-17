@@ -14,7 +14,7 @@ u8 Interrupts::interrupt_value = 0;
 
 void resetCPU() {
 	CPU_STOPPED = false;
-	regs.P.setEmulation(1);
+	regs.P.setEmulation(1, regs);
 	regs.setDirectPageRegister(0x00);
 	regs.setSP((regs.getSP() & 0xff) | 0x0100);
 	regs.P.setAccuMemSize(1);
@@ -130,7 +130,7 @@ u8 SEI() {
 u8 XCE() {
 	u8 tmp = regs.P.getCarry();
 	regs.P.setCarry(regs.P.getEmulation());
-	regs.P.setEmulation(tmp);
+	regs.P.setEmulation(tmp, regs);
 	if (tmp == 0) {	//	if emulation mode
 		regs.P.setAccuMemSize(1);
 		regs.P.setIndexSize(1, &regs);
@@ -153,22 +153,22 @@ u8 XBA() {
 
 //	push program bank register to stack
 u8 PHK() {
-	pushToStack(regs.getProgramBankRegister());
+	pushToStack(regs.PB);
 	regs.PC += 1;
 	return 3;
 }
 
 //	push data bank register to stack
 u8 PHB() {
-	pushToStack(regs.getDataBankRegister());
+	pushToStack(regs.DBR);
 	regs.PC += 1;
 	return 3;
 }
 
 //	push direct page register to stack
 u8 PHD() {
-	pushToStack((u8)(regs.getDirectPageRegister() >> 8));
-	pushToStack((u8)(regs.getDirectPageRegister() & 0xff));
+	pushToStack((u8)(regs.D >> 8));
+	pushToStack((u8)(regs.D & 0xff));
 	regs.PC += 1;
 	return 4;
 }
@@ -192,7 +192,7 @@ u8 PEA(u32(*f)(), u8 cycles) {
 //	push effectice indirect address
 u8 PEI(u32(*f)(), u8 cycles) {
 	u32 adr = f();
-	adr |= regs.getDataBankRegister();
+	adr |= regs.DBR;
 	pushToStack((u8)(adr >> 8));
 	pushToStack((u8)(adr & 0xff));
 	regs.PC++;
@@ -269,8 +269,8 @@ u8 PLA(u8 cycles) {
 //	pull data bank register from stack
 u8 PLB() {
 	regs.setDataBankRegister(pullFromStack());
-	regs.P.setNegative((regs.getDataBankRegister() & 0x80) == 0x80 );
-	regs.P.setZero(regs.getDataBankRegister() == 0x00);
+	regs.P.setNegative((regs.DBR & 0x80) == 0x80 );
+	regs.P.setZero(regs.DBR == 0x00);
 	regs.PC += 1;
 	return 4;
 }
@@ -280,8 +280,8 @@ u8 PLD() {
 	u8 lo = pullFromStack();
 	u8 hi = pullFromStack();
 	regs.setDirectPageRegister((hi << 8) | lo);
-	regs.P.setNegative((regs.getDataBankRegister() & 0x8000) == 0x8000);
-	regs.P.setZero(regs.getDataBankRegister() == 0x0000);
+	regs.P.setNegative((regs.DBR & 0x8000) == 0x8000);
+	regs.P.setZero(regs.DBR == 0x0000);
 	regs.PC++;
 	return 5;
 }
@@ -1123,15 +1123,15 @@ u8 TSB(u32(*f)(), u8 cycles) {
 //	Transfer 16 bit A to DP
 u8 TCD() {
 	regs.setDirectPageRegister(regs.getAccumulator());
-	regs.P.setZero(regs.getDirectPageRegister() == 0);
-	regs.P.setNegative(regs.getDirectPageRegister() >> 15);
+	regs.P.setZero(regs.D == 0);
+	regs.P.setNegative(regs.D >> 15);
 	regs.PC++;
 	return 2;
 }
 
 //	Transfer DP to 16 bit A
 u8 TDC() {
-	regs.setAccumulator(regs.getDirectPageRegister());
+	regs.setAccumulator(regs.D);
 	regs.P.setZero(regs.getAccumulator() == 0);
 	regs.P.setNegative(regs.getAccumulator() >> 15);
 	regs.PC++;
@@ -1405,7 +1405,7 @@ u8 STY(u32 (*f)(), u8 cycles) {
 //	Branch if not equal (Z = 0)
 u8 BNE(u32 (*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getZero() == 0) {
@@ -1418,7 +1418,7 @@ u8 BNE(u32 (*f)(), u8 cycles) {
 //	Branch if plus
 u8 BPL(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getNegative() == 0) {
@@ -1431,7 +1431,7 @@ u8 BPL(u32(*f)(), u8 cycles) {
 //	Branch if minus
 u8 BMI(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getNegative() == 1) {
@@ -1444,7 +1444,7 @@ u8 BMI(u32(*f)(), u8 cycles) {
 //	Branch if carry clear
 u8 BCC(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getCarry() == 0) {
@@ -1457,7 +1457,7 @@ u8 BCC(u32(*f)(), u8 cycles) {
 //	Branch if carry set
 u8 BCS(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getCarry() == 1) {
@@ -1470,7 +1470,7 @@ u8 BCS(u32(*f)(), u8 cycles) {
 //	Branch if overflow clear
 u8 BVC(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getOverflow() == 0) {
@@ -1483,7 +1483,7 @@ u8 BVC(u32(*f)(), u8 cycles) {
 //	Branch if overflow set
 u8 BVS(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getOverflow() == 1) {
@@ -1495,7 +1495,7 @@ u8 BVS(u32(*f)(), u8 cycles) {
 
 //	Branch always
 u8 BRA(u32(*f)(), u8 cycles) {
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	regs.PC += offset;
@@ -1504,7 +1504,7 @@ u8 BRA(u32(*f)(), u8 cycles) {
 
 //	Branch always long
 u8 BRL(u32(*f)(), u8 cycles) {
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u32 adr = (pb << 16) | f();
 	i8 offset = (BUS_readFromMem((pb << 16) | adr + 1) << 8) | BUS_readFromMem((pb << 16) | adr);
 	regs.PC += 2;
@@ -1515,7 +1515,7 @@ u8 BRL(u32(*f)(), u8 cycles) {
 //	Branch if equal (Z = 1)
 u8 BEQ(u32(*f)(), u8 cycles) {
 	u8 branch_taken = 0;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	i8 offset = BUS_readFromMem((pb << 16) | f());
 	regs.PC++;
 	if (regs.P.getZero() == 1) {
@@ -1566,7 +1566,7 @@ u8 JSR(u32(*f)(), u8 cycles) {
 //	Jump to subroutine
 u8 JSL(u32(*f)(), u8 cycles) {
 	u32 adr = f();
-	pushToStack(regs.getProgramBankRegister());
+	pushToStack(regs.PB);
 	pushToStack((u8)(regs.PC >> 8));
 	pushToStack((u8)(regs.PC & 0xff));
 	regs.setProgramBankRegister((adr >> 16) & 0xff);
@@ -1577,7 +1577,7 @@ u8 JSL(u32(*f)(), u8 cycles) {
 //	Jump to subroutine
 u8 JSL_ABS_LONG(u32(*f)(), u8 cycles) {
 	u32 adr = f();
-	pushToStack(regs.getProgramBankRegister());
+	pushToStack(regs.PB);
 	pushToStack((u8)(regs.PC >> 8));
 	pushToStack((u8)(regs.PC & 0xff));
 	regs.PC = adr;
@@ -1588,7 +1588,7 @@ u8 JSL_ABS_LONG(u32(*f)(), u8 cycles) {
 u8 RTS(u8 cycles) {
 	u8 lo = pullFromStack();
 	u8 hi = pullFromStack();
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	regs.PC = (pb << 16) | (hi << 8) | lo;
 	regs.PC++;
 	return cycles;
@@ -1599,7 +1599,7 @@ u8 RTL(u8 cycles) {
 	u8 lo = pullFromStack();
 	u8 hi = pullFromStack();
 	regs.setProgramBankRegister( pullFromStack());
-	regs.PC = (regs.getProgramBankRegister() << 16) | (hi << 8) | lo;
+	regs.PC = (regs.PB << 16) | (hi << 8) | lo;
 	regs.PC++;
 	return cycles;
 }
@@ -1667,7 +1667,7 @@ u8 BRK() {
 		regs.PC = (hi << 8) | lo;
 	}
 	else {
-		pushToStack(regs.getProgramBankRegister());
+		pushToStack(regs.PB);
 		regs.PC += 2;
 		pushToStack((u8)(regs.PC >> 8));
 		pushToStack((u8)(regs.PC & 0xff));
@@ -1697,7 +1697,7 @@ u8 COP() {
 		regs.P.setDecimal(0);
 	}
 	else {
-		pushToStack(regs.getProgramBankRegister());
+		pushToStack(regs.PB);
 		regs.PC += 2;
 		pushToStack((u8)(regs.PC >> 8));
 		pushToStack((u8)(regs.PC & 0xff));
@@ -1720,7 +1720,7 @@ u8 RTI() {
 		regs.P.setIndexSize(1, &regs);
 		u8 lo = pullFromStack();
 		u8 hi = pullFromStack();
-		u8 pb = regs.getProgramBankRegister();
+		u8 pb = regs.PB;
 		regs.PC = (pb << 16) | (hi << 8) | lo;
 	}
 	else {
@@ -1728,7 +1728,7 @@ u8 RTI() {
 		regs.P.setByte(p);
 		u8 lo = pullFromStack();
 		u8 hi = pullFromStack();
-		u8 pb = regs.getProgramBankRegister();
+		u8 pb = regs.PB;
 		regs.PC = (pb << 16) | (hi << 8) | lo;
 		regs.setProgramBankRegister(pullFromStack());
 	}
@@ -1750,7 +1750,7 @@ u8 WAI() {
 			regs.P.setDecimal(0);
 		}
 		else {
-			pushToStack(regs.getProgramBankRegister());
+			pushToStack(regs.PB);
 			regs.PC++;
 			pushToStack((u8)(regs.PC >> 8));
 			pushToStack((u8)(regs.PC & 0xff));
@@ -1778,19 +1778,19 @@ u8 STP() {
 bool pbr = false;
 u32 ADDR_getImmediate_8() {					//	verified
 	regs.PC++;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	return (pb << 16) | regs.PC;
 }
 u32 ADDR_getImmediate_16() {				//	verified
 	regs.PC += 2;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u32 adr = (pb << 16) | regs.PC - 1;
 	return adr;
 }
 u32 ADDR_getAbsolute() {					//	verified
 	regs.PC += 2;
-	u8 pb = regs.getProgramBankRegister();
-	u8 dbr = regs.getDataBankRegister();
+	u8 pb = regs.PB;
+	u8 dbr = regs.DBR;
 	u16 adr = ((BUS_readFromMem((pb << 16) | regs.PC) << 8) | BUS_readFromMem((pb << 16) | regs.PC-1));
 	return (dbr << 16) | adr;
 }
@@ -1801,8 +1801,8 @@ u32 ADDR_getAbsoluteLong() {
 }
 u32 ADDR_getAbsoluteIndexedX() {			//	verified
 	regs.PC += 2;
-	u8 pb = regs.getProgramBankRegister();
-	u8 dbr = regs.getDataBankRegister();
+	u8 pb = regs.PB;
+	u8 dbr = regs.DBR;
 	u16 adr = ((BUS_readFromMem( (pb << 16) | regs.PC) << 8) | BUS_readFromMem( (pb << 16) | regs.PC - 1));
 	pbr = (adr & 0xff00) != ((adr + regs.getX()) & 0xff00);
 	adr = adr + regs.getX();
@@ -1810,7 +1810,7 @@ u32 ADDR_getAbsoluteIndexedX() {			//	verified
 }
 u32 ADDR_getAbsoluteIndexedY() {			//	verified
 	regs.PC += 2;
-	u8 dbr = regs.getDataBankRegister();
+	u8 dbr = regs.DBR;
 	u16 adr = ((BUS_readFromMem(regs.PC) << 8) | BUS_readFromMem(regs.PC - 1));
 	pbr = (adr & 0xff00) != ((adr + regs.getY()) & 0xff00);
 	adr = adr + regs.getY();
@@ -1818,12 +1818,12 @@ u32 ADDR_getAbsoluteIndexedY() {			//	verified
 }
 u32 ADDR_getAbsoluteLongIndexedX() {		//	verified
 	regs.PC += 3;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	return (BUS_readFromMem((pb << 16) | regs.PC) << 16) | (BUS_readFromMem((pb << 16) | regs.PC - 1) << 8) | BUS_readFromMem((pb << 16) | regs.PC - 2) + regs.getX();
 }
 u32 ADDR_getAbsoluteIndirect() {			//	verified
 	regs.PC += 2;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u8 lo = BUS_readFromMem((pb << 16) | regs.PC-1);
 	u8 hi = BUS_readFromMem((pb << 16) | regs.PC);
 	u16 adr = (hi << 8) | lo;
@@ -1833,18 +1833,18 @@ u32 ADDR_getAbsoluteIndirect() {			//	verified
 }
 u32 ADDR_getAbsoluteIndirectLong() {		//	verified
 	regs.PC += 2;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u8 lo = BUS_readFromMem((pb << 16) | regs.PC - 1);
 	u8 hi = BUS_readFromMem((pb << 16) | regs.PC);
 	u16 adr = (hi << 8) | lo;
 	u8 i_lo = BUS_readFromMem(adr);
 	u8 i_hi = BUS_readFromMem(adr + 1);
 	regs.setProgramBankRegister(BUS_readFromMem(adr + 2));
-	return (regs.getProgramBankRegister() << 16) | (i_hi << 8) | i_lo;
+	return (regs.PB << 16) | (i_hi << 8) | i_lo;
 }
 u32 ADDR_getAbsoluteIndexedIndirectX() {	//	verified
 	regs.PC += 2;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u8 lo = BUS_readFromMem((pb << 16) | regs.PC - 1);
 	u8 hi = BUS_readFromMem((pb << 16) | regs.PC);
 	u16 adr = (pb << 16) | (hi << 8) | lo + regs.getX();
@@ -1858,52 +1858,52 @@ u32 ADDR_getLong() {						//	verified
 }
 u32 ADDR_getDirectPage() {
 	regs.PC++;
-	return regs.getDirectPageRegister() | BUS_readFromMem(regs.PC);
+	return regs.D | BUS_readFromMem(regs.PC);
 }
 u32 ADDR_getDirectPageIndexedX() {
 	regs.PC++;
-	return regs.getDirectPageRegister() | BUS_readFromMem(regs.PC) + regs.getX();
+	return regs.D | BUS_readFromMem(regs.PC) + regs.getX();
 }
 u32 ADDR_getDirectPageIndexedY() {
 	regs.PC++;
-	return regs.getDirectPageRegister() | BUS_readFromMem(regs.PC) + regs.getY();
+	return regs.D | BUS_readFromMem(regs.PC) + regs.getY();
 }
 u32 ADDR_getDirectPageIndirect() {
 	regs.PC++;
-	u8 dbr = regs.getDataBankRegister();
-	u8 pb = regs.getProgramBankRegister();
-	u8 dp_index = BUS_readFromMem((pb << 16) | regs.PC + regs.getDirectPageRegister());
+	u8 dbr = regs.DBR;
+	u8 pb = regs.PB;
+	u8 dp_index = BUS_readFromMem((pb << 16) | regs.PC + regs.D);
 	u16 dp_adr = (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	return (dbr << 16) | dp_adr;
 }
 u32 ADDR_getDirectPageIndirectLong() {
 	regs.PC++;
-	/*u8 dbr = regs.getDataBankRegister();
-	u8 dp_index = readFromMem(regs.PC + regs.getDirectPageRegister());
+	/*u8 dbr = regs.DBR;
+	u8 dp_index = readFromMem(regs.PC + regs.D);
 	u32 dp_adr = (readFromMem(dp_index + 2) << 16) | (readFromMem(dp_index + 1) << 8) | readFromMem(dp_index);*/
-	u8 pb = regs.getProgramBankRegister();
-	u16 dp_index = BUS_readFromMem((pb << 16) | regs.PC) + regs.getDirectPageRegister();
+	u8 pb = regs.PB;
+	u16 dp_index = BUS_readFromMem((pb << 16) | regs.PC) + regs.D;
 	u32 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	return dp_adr;
 }
 u32 ADDR_getDirectPageIndirectX() {
 	regs.PC++;
-	u8 dbr = regs.getDataBankRegister();
-	u8 dp_index = BUS_readFromMem(regs.PC + regs.getDirectPageRegister()) + regs.getX();
+	u8 dbr = regs.DBR;
+	u8 dp_index = BUS_readFromMem(regs.PC + regs.D) + regs.getX();
 	u16 dp_adr = (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	return (dbr << 16) | dp_adr;
 }
 u32 ADDR_getDirectPageIndirectIndexedY() {
 	regs.PC++;
-	u8 dp_index = BUS_readFromMem(regs.PC + regs.getDirectPageRegister());
-	u16 dp_adr = (regs.getDataBankRegister() << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
+	u8 dp_index = BUS_readFromMem(regs.PC + regs.D);
+	u16 dp_adr = (regs.DBR << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
 	return dp_adr;
 }
 u32 ADDR_getDirectPageIndirectLongIndexedY() {
 	regs.PC++;
-	u8 dp_index = BUS_readFromMem(regs.PC + regs.getDirectPageRegister());
+	u8 dp_index = BUS_readFromMem(regs.PC + regs.D);
 	u16 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
@@ -1911,15 +1911,15 @@ u32 ADDR_getDirectPageIndirectLongIndexedY() {
 }
 u32 ADDR_getStackRelative() {
 	regs.PC++;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u8 byte = BUS_readFromMem((pb << 16) | regs.PC);
 	return regs.getSP() + byte;
 }
 u32 ADDR_getStackRelativeIndirectIndexedY() {
 	regs.PC++;
-	u8 pb = regs.getProgramBankRegister();
+	u8 pb = regs.PB;
 	u8 byte = BUS_readFromMem((pb << 16) | regs.PC);
-	u8 base = BUS_readFromMem((regs.getDataBankRegister() << 16) | regs.getSP() + byte);
+	u8 base = BUS_readFromMem((regs.DBR << 16) | regs.getSP() + byte);
 	return base + regs.getY();
 }
 bool pageBoundaryCrossed() {
@@ -1930,11 +1930,11 @@ bool pageBoundaryCrossed() {
 
 
 u8 CPU_step() {
-	std::string flags = byteToBinaryString(regs.P.getByte());
-	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.getProgramBankRegister(), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.getDirectPageRegister(), regs.getDataBankRegister(), flags.c_str());
+	//std::string flags = byteToBinaryString(regs.P.getByte());
+	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
+	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
 	if (!CPU_STOPPED) {
-		switch (BUS_readFromMem((regs.getProgramBankRegister() << 16) | regs.PC)) {
+		switch (BUS_readFromMem((regs.PB << 16) | regs.PC)) {
 
 		case 0x00:	return BRK(); break;
 		case 0x01:	return ORA(ADDR_getDirectPageIndirectX, 6 + regs.P.isMReset() + regs.isDPLowNotZero()); break;
