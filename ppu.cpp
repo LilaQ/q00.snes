@@ -111,14 +111,14 @@ void PPU_init(std::string filename) {
 	/*
 		MAIN WINDOW
 	*/
-	SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
+	//SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	SDL_Init(SDL_INIT_VIDEO);
 	/*window = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, 256, 239, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);*/
 	SDL_CreateWindowAndRenderer(256, 239, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC, &sdl_window, &renderer);
-	SDL_SetWindowSize(sdl_window, 256 * 2, 239 * 2);
+	SDL_SetWindowSize(sdl_window, 256 * 2, 239 * 2 + 20);
 	//	init and create window and renderer
-	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	//SDL_SetWindowSize(window, 512, 478);
 	//SDL_RenderSetLogicalSize(renderer, 512, 480);
 	SDL_SetWindowResizable(sdl_window, SDL_TRUE);
@@ -194,6 +194,7 @@ void PPU_drawFrame() {
 	SDL_UpdateTexture(FULL_CALC_TEX, NULL, FULL_CALC, 1024);
 	SDL_RenderCopy(renderer, FULL_CALC_TEX, NULL, NULL);
 	SDL_RenderPresent(renderer);
+	SDL_RenderClear(renderer);
 	
 }
 const u8 ALPHA_LUT[2] = {0, 255};
