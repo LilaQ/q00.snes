@@ -36,6 +36,12 @@
     <ClCompile Include="bus.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="spc700_cpu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="spc700_bus.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="apu.h">
@@ -57,6 +63,12 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="bus.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="spc700_cpu.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="spc700_bus.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

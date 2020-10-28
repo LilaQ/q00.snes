@@ -1,6 +1,7 @@
 #include <string>
 #include <chrono>
-#include <thread>
+#include "spc700_cpu.h"
+#include "spc700_bus.h"
 #include "bus.h"
 #include "cpu.h"
 #include "ppu.h"
@@ -8,8 +9,8 @@
 #include "apu.h"
 #include <iostream>
 #include <cstdint>
-#include "SDL2/include/SDL_syswm.h"
-#include "SDL2/include/SDL.h"
+//#include "SDL2/include/SDL_syswm.h"
+//#include "SDL2/include/SDL.h"
 #undef main
 
 //		Kroms tests from https://github.com/PeterLemon/SNES/tree/master/CPUTest/CPU
@@ -47,11 +48,14 @@
 //string filename = "8x8BGMap8BPP64x32.sfc";
 //string filename = "8x8BGMap8BPP64x64.sfc";
 //string filename = "8x8BGMap8BPP32x328PAL.sfc";
-//string filename = "smw.smc";
+std::string filename = "smw.smc";
 //string filename = "snestest.smc";
 
 //string filename = "HiColor575MystSub.sfc";
-std::string filename = "translucent.smc";
+//std::string filename = "translucent.smc";
+//std::string filename = "BANKHiROMFastROM.sfc";
+//std::string filename = "BANKLoROMSlowROM.sfc";	//	-	Passed
+//std::string filename = "BANKLoROMFastROM.sfc";
 
 bool unpaused = true;
 
@@ -61,6 +65,7 @@ int frames = 0;
 
 u16 w = 0;
 u16 ppu_cycles_left;
+u16 spc_cycles_left;
 u16 delay = 0;
 
 
@@ -71,7 +76,9 @@ int main()
 	BUS_loadROM(filename);
 
 	PPU_init(filename);
-	initAPU();
+	SPC700_MMU_RESET();
+
+	int64_t sched_CPU_SPC = 0;
 
 	frames = 0;
 	auto last_second = std::chrono::high_resolution_clock::now();
@@ -93,12 +100,26 @@ int main()
 			last_time = current_time;
 
 			// execute CPU, PPU, APU
-			lastcyc = CPU_step();
-			ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
-			PPU_step( ppu_cycles_left >> 2);
-			ppu_cycles_left -= (ppu_cycles_left >> 2);
+			if (!(sched_CPU_SPC >> 63)) {
 
-			//stepAPU(lastcyc);
+				lastcyc = CPU_step();
+
+				//	TODO fix this correlation - here is ~40fps laying around in kroms INSTR tests
+				ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
+				PPU_step(ppu_cycles_left >> 2);
+				ppu_cycles_left -= (ppu_cycles_left >> 2);
+
+				sched_CPU_SPC -= lastcyc * 6 * 24576000;
+			}
+			else {
+
+				//	relative scheduler, we multiply with the frequency of the other
+				//	component of this 1:1 relation, so in this case the CPU's main
+				//	frequency
+				lastcyc = SPC700_TICK();
+				sched_CPU_SPC += lastcyc * 24 * 21477272;
+
+			}
 			
 		}
 		if(++delay % 1000 == 0)

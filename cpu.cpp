@@ -44,15 +44,18 @@ u16 CPU_getPC() {
 void pushToStack(u8 val) {
 	regs.setSP(regs.getSP() - 1);
 	BUS_writeToMem(val, regs.getSP() + 1);
+	printf("Pushing to stack %x at %x\n", val, regs.getSP());
 }
 void pushToStack(u16 val) {
 	regs.setSP(regs.getSP() - 2);
 	BUS_writeToMem(val >> 8, regs.getSP() + 2);
 	BUS_writeToMem(val & 0xff, regs.getSP() + 1);
+	printf("Pushing to stack %x %x at %x\n", val >> 8, val & 0xff, regs.getSP());
 }
 u8 pullFromStack() {
 	u8 val = BUS_readFromMem(regs.getSP() + 1);
 	regs.setSP(regs.getSP() + 1);
+	printf("Pulling from stack %x at %x\n", val, regs.getSP());
 	return val;
 }
 //	return P as readable string
@@ -620,7 +623,7 @@ u8 CPX(u32(*f)(), u8 cycles) {
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 m = (hi << 8) | lo;
 		u16 val = regs.getX() - m;
-		regs.P.setNegative(val >> 7);
+		regs.P.setNegative(val >> 15);
 		regs.P.setZero(val == 0);
 		regs.P.setCarry(regs.getX() >= m);
 	}
@@ -644,7 +647,7 @@ u8 CPY(u32(*f)(), u8 cycles) {
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 m = (hi << 8) | lo;
 		u16 val = regs.getY() - m;
-		regs.P.setNegative(val >> 7);
+		regs.P.setNegative(val >> 15);
 		regs.P.setZero(val == 0);
 		regs.P.setCarry(regs.getY() >= m);
 	}
@@ -668,7 +671,7 @@ u8 CMP(u32(*f)(), u8 cycles) {
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 m = (hi << 8) | lo;
 		u16 val = regs.getAccumulator() - m;
-		regs.P.setNegative(val >> 7);
+		regs.P.setNegative(val >> 15);
 		regs.P.setZero(val == 0);
 		regs.P.setCarry(regs.getAccumulator() >= m);
 	}
@@ -1896,7 +1899,7 @@ u32 ADDR_getDirectPageIndirectX() {
 u32 ADDR_getDirectPageIndirectIndexedY() {
 	regs.PC++;
 	u8 dp_index = BUS_readFromMem(regs.PC + regs.D);
-	u16 dp_adr = (regs.DBR << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
+	u32 dp_adr = (regs.DBR << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
 	return dp_adr;
@@ -1904,7 +1907,7 @@ u32 ADDR_getDirectPageIndirectIndexedY() {
 u32 ADDR_getDirectPageIndirectLongIndexedY() {
 	regs.PC++;
 	u8 dp_index = BUS_readFromMem(regs.PC + regs.D);
-	u16 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
+	u32 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
 	return dp_adr;
@@ -1930,9 +1933,9 @@ bool pageBoundaryCrossed() {
 
 
 u8 CPU_step() {
-	//std::string flags = byteToBinaryString(regs.P.getByte());
+	std::string flags = byteToBinaryString(regs.P.getByte());
 	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
+	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s %04X \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), BUS_readFromMem(0x2140));
 	if (!CPU_STOPPED) {
 		switch (BUS_readFromMem((regs.PB << 16) | regs.PC)) {
 

@@ -25,6 +25,8 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="bus.cpp" />
     <ClCompile Include="ppu.cpp" />
+    <ClCompile Include="spc700_cpu.cpp" />
+    <ClCompile Include="spc700_bus.cpp" />
     <ClCompile Include="wmu.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -34,6 +36,8 @@
     <ClInclude Include="main.h" />
     <ClInclude Include="bus.h" />
     <ClInclude Include="ppu.h" />
+    <ClInclude Include="spc700_cpu.h" />
+    <ClInclude Include="spc700_bus.h" />
     <ClInclude Include="wmu.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

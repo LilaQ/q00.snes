@@ -1,5 +1,5 @@
-#ifndef LIB_CPU
-#define LIB_CPU
+#ifndef LIB_SPC700
+#define LIB_SPC700
 
 #include <stdint.h>
 #include <stdio.h>
@@ -7,29 +7,26 @@
 typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
+typedef int8_t		i8;
 
-struct Status;
-
-struct Registers
+struct SPC700_Registers
 {
 private:
 
-	struct Status
+	struct SPC700_Status
 	{
-	private:
-		bool P = false;			//	Zero Page Location (0 = 00xxh, 1 = 01xxh)
 	public:
 		bool N = false;			//	Negative
 		bool V = false;			//	Overflow
 		bool B = false;			//	Break Flag (0 = Reset, 1 = BRK opcode; set <after> BRK opcode)
 		bool H = false;			//	Half-carry
-		bool I = true;			//	IRQ Enable (0 = Disable, 1 = Enable) [no function in SNES APU]
-		bool Z = false;			//	Zero
+		bool I = false;			//	IRQ Enable (0 = Disable, 1 = Enable) [no function in SNES APU]
+		bool Z = true;			//	Zero
 		bool C = false;			//	Carry
 		u16 zeropage = 0x0000;
 
 		u8 getByte() {
-			return  (N << 7) | (V << 6) | (P << 5) | (B << 4) | (H << 3) | (I << 2) | (Z << 1) | (u8)C;
+			return  (N << 7) | (V << 6) | ((zeropage >> 2) << 5) | (B << 4) | (H << 3) | (I << 2) | (Z << 1) | (u8)C;
 		}
 		void setByte(u8 val) {
 			C = val & 1;
@@ -37,7 +34,7 @@ private:
 			I = (val >> 2) & 1;
 			H = (val >> 3) & 1;
 			B = (val >> 4) & 1;
-			P = (val >> 5) & 1;
+			zeropage = ((val >> 5) & 1) << 2;
 			V = (val >> 6) & 1;
 			N = (val >> 7) & 1;
 		}
@@ -45,20 +42,17 @@ private:
 
 public:
 
-	u8 A;			//	Accumulator
-	u8 X;			//	X-Register
-	u8 Y;			//	Y-Register
-	u16 SP;			//	Stack Pointer
-	u16 YA;			//	Y-MSB, A-LSB
-	u16 PC;			//	Program Counter
-	Status PSW;		//	Program Status
+	u8 A;					//	Accumulator
+	u8 X;					//	X-Register
+	u8 Y;					//	Y-Register
+	u16 SP = 0x01ef;		//	Stack Pointer
+	u16 YA;					//	Y-MSB, A-LSB
+	u16 PC = 0xFFC0;		//	Program Counter
+	SPC700_Status PSW;		//	Program Status
 };
 
 
-u8 CPU_step();
-void resetCPU();
-void togglePause();
-u16 CPU_getPC();
-bool CPU_isStopped();
+void SPC700_RESET();
+u8 SPC700_TICK();
 
-#endif // !LIB_CPU
+#endif // !LIB_SPC700
