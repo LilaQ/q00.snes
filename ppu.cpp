@@ -38,7 +38,7 @@ u32 FULL_CALC[FB_SIZE];
 bool BG3_PRIORITY = false;
 
 //	BG & SubScreen Enabled Status
-PPU_COLOR_DEPTH *BG_MODE = new PPU_COLOR_DEPTH[4]();
+PPU_COLOR_DEPTH *BG_MODE;
 u8 BG_MODE_ID = 0;
 
 //	BG Scrolling
@@ -214,10 +214,10 @@ void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 b
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
 	const u16 offset =
-		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		(((bg_size_w == 0x200) ? (scry % 256) : (scry)) / 8) * 32 +
 		((scrx % 256) / 8) +
 		(scrx / 256) * 0x400 +
-		(bg_size_w / 64) * ((scry / 256) * 0x800);
+		(bg_size_w / 0x200) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
@@ -240,10 +240,10 @@ void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
 	const u16 offset =
-		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+		(((bg_size_w == 0x200) ? (scry % 256) : (scry)) / 8) * 32 +
 		((scrx % 256) / 8) +
 		(scrx / 256) * 0x400 +
-		(bg_size_w / 64) * ((scry / 256) * 0x800);
+		(bg_size_w / 0x200) * ((scry / 256) * 0x800);
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
@@ -264,23 +264,22 @@ void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
 	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
-void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
+void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
 	scrx = (scrx + scroll_x) % (8 * bg_size_w);
 
-	const u16 offset = 
-		(((bg_size_w == 64) ? (scry % 256) : (scry)) / 8) * 32 +
+	const u16 offset =
+		(((bg_size_w == 0x200) ? (scry % 256) : (scry)) / 8) * 32 +
 		((scrx % 256) / 8) +
 		(scrx / 256) * 0x400 +
-		(bg_size_w / 64) * ((scry / 256) * 0x800);
+		(bg_size_w / 0x200) * ((scry / 256) * 0x800);
 	const u16 tile_base_adr = bg_base + offset;
-	const u16 fByte = VRAM[tile_base_adr];
-	const u16 tile_id = fByte & 0x3ff;					//	mask bits that are for index
-	const u8 b_palette_nr = (fByte >> 10) & 0b111;
-	const u8 b_flip_x = (fByte >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
-	const u8 b_flip_y = (fByte >> 15) & 1;				//	0 - normal, 1 - mirror vertically
+	const u16 tile_id = VRAM[tile_base_adr] & 0x3ff;					//	mask bits that are for index
+	const u8 b_palette_nr = (VRAM[tile_base_adr] >> 10) & 0b111;
+	const u8 b_flip_x = (VRAM[tile_base_adr] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
+	const u8 b_flip_y = (VRAM[tile_base_adr] >> 15) & 1;				//	0 - normal, 1 - mirror vertically
 	const u8 i = scry % 8;
 	const u8 j = scrx % 8;
 	const u8 v_shift = i + (-i + 7 - i) * b_flip_y;
@@ -294,14 +293,14 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u8 b_6 = VRAM[tile_address + 16] >> 8;
 	const u8 b_7 = VRAM[tile_address + 24] & 0xff;
 	const u8 b_8 = VRAM[tile_address + 24] >> 8;
-	const u16 v =	(		(b_1 >> h_shift) & 1) + 
-					(2 *	((b_2 >> h_shift) & 1)) + 
-					(4 *	((b_3 >> h_shift) & 1)) + 
-					(8 *	((b_4 >> h_shift) & 1)) + 
-					(16 *	((b_5 >> h_shift) & 1)) + 
-					(32 *	((b_6 >> h_shift) & 1)) +
-					(64 *	((b_7 >> h_shift) & 1)) +
-					(128 *	((b_8 >> h_shift) & 1));
+	const u16 v = ((b_1 >> h_shift) & 1) +
+		(2 * ((b_2 >> h_shift) & 1)) +
+		(4 * ((b_3 >> h_shift) & 1)) +
+		(8 * ((b_4 >> h_shift) & 1)) +
+		(16 * ((b_5 >> h_shift) & 1)) +
+		(32 * ((b_6 >> h_shift) & 1)) +
+		(64 * ((b_7 >> h_shift) & 1)) +
+		(128 * ((b_8 >> h_shift) & 1));
 	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
 	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
@@ -846,23 +845,24 @@ bool PPU_getVBlankNMIFlag() {
 void debug_drawBG(u8 bg_id) {
 
 	//	find out size
-	memset(DEBUG, 0, sizeof(DEBUG));
+	memset(DEBUG, 0, FB_SIZE * 4);
 	SDL_Window* tWindows;
 	SDL_Renderer* tRenderer;
 	SDL_Texture* tTexture;
-	u16 tex_w = (8 * BG_TILES_H[bg_id]);
-	u16 tex_h = (8 * BG_TILES_V[bg_id]);
+	u16 tex_w = (BG_TILES_H[bg_id]) + 1;
+	u16 tex_h = (BG_TILES_V[bg_id]) + 1;
 
 	//	render full size
 	if (BG_MODE[bg_id] != PPU_COLOR_DEPTH::CD_DISABLED) {
 		for (u16 y = 0; y < tex_h; y++) {
 			for (u16 x = 0; x < tex_w; x++) {
 				if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+					renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
 				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
-				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS)
-					renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id], BG_TILES_V[bg_id], BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] * 8, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+					renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS) {
+					renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+				}
 			}
 		}
 	}
