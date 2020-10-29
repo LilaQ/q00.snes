@@ -340,8 +340,6 @@ u8 PLY() {
 
 //	reset status bits (reset all bits set in the immediate value)
 u8 REP() {
-	if (regs.PC > 0x8a00)
-		printf("hol");
 	u8 v = BUS_readFromMem(regs.PC+1);
 	bool N = ((u8)regs.P.getNegative() & ~((v >> 7) & 1)) > 0;
 	bool V = ((u8)regs.P.getOverflow() & ~((v >> 6) & 1)) > 0;
@@ -1536,7 +1534,7 @@ u8 JML(u32 (*f)(), u8 cycles) {
 	u32 adr = f();
 	u8 bnk = (adr >> 16) & 0xff;
 	regs.PC = adr;
-	regs.setProgramBankRegister(bnk);
+	//regs.setProgramBankRegister(bnk);
 	return cycles;
 }
 
@@ -1544,6 +1542,14 @@ u8 JML(u32 (*f)(), u8 cycles) {
 u8 JMP(u32(*f)(), u8 cycles) {
 	u32 adr = f();
 	regs.PC = adr;
+	return cycles;
+}
+
+//	Jump Indirect Long (mods PB)
+u8 JMP_IND_LONG(u32(*f)(), u8 cycles) {
+	u32 adr = f();
+	regs.PC = adr;
+	regs.setProgramBankRegister((adr >> 16) & 0xff);
 	return cycles;
 }
 
@@ -1558,7 +1564,7 @@ u8 JMP_ABS_LONG(u32(*f)(), u8 cycles) {
 //	Jump to subroutine (verified)
 u8 JSR(u32(*f)(), u8 cycles) {
 	u32 adr = f();
-	regs.setProgramBankRegister((adr >> 16) & 0xff);
+	//regs.setProgramBankRegister((adr >> 16) & 0xff);
 	pushToStack((u8)(regs.PC >> 8));
 	pushToStack((u8)(regs.PC & 0xff));
 	regs.PC = adr;
@@ -1571,7 +1577,7 @@ u8 JSL(u32(*f)(), u8 cycles) {
 	pushToStack(regs.PB);
 	pushToStack((u8)(regs.PC >> 8));
 	pushToStack((u8)(regs.PC & 0xff));
-	regs.setProgramBankRegister((adr >> 16) & 0xff);
+	//regs.setProgramBankRegister((adr >> 16) & 0xff);
 	regs.PC = adr;
 	return cycles;
 }
@@ -1583,6 +1589,7 @@ u8 JSL_ABS_LONG(u32(*f)(), u8 cycles) {
 	pushToStack((u8)(regs.PC >> 8));
 	pushToStack((u8)(regs.PC & 0xff));
 	regs.PC = adr;
+	regs.setProgramBankRegister((adr >> 16) & 0xff);
 	return cycles;
 }
 
@@ -1798,8 +1805,7 @@ u32 ADDR_getAbsolute() {					//	verified
 }
 u32 ADDR_getAbsoluteLong() {
 	regs.PC += 3;
-	u16 adr = ((BUS_readFromMem(regs.PC) << 16) | (BUS_readFromMem(regs.PC - 1) << 8) | BUS_readFromMem(regs.PC - 2));
-	return adr;
+	return ((BUS_readFromMem(regs.PC) << 16) | (BUS_readFromMem(regs.PC - 1) << 8) | BUS_readFromMem(regs.PC - 2));
 }
 u32 ADDR_getAbsoluteIndexedX() {			//	verified
 	regs.PC += 2;
@@ -1933,7 +1939,7 @@ bool pageBoundaryCrossed() {
 
 u8 CPU_step() {
 	std::string flags = byteToBinaryString(regs.P.getByte());
-	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
+	//printf("Op: %02x %02x %02x %02x  PC : 0x%06x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), (regs.PB << 16) | regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
 	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
 	if (!CPU_STOPPED) {
 		switch (BUS_readFromMem((regs.PB << 16) | regs.PC)) {
@@ -2158,7 +2164,7 @@ u8 CPU_step() {
 		case 0xd9:	return CMP(ADDR_getAbsoluteIndexedY, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 		case 0xda:	return PHX(3 + regs.P.getIndexSize()); break;
 		case 0xdb:	return STP(); break;
-		case 0xdc:	return JMP(ADDR_getAbsoluteIndirectLong, 6); break;
+		case 0xdc:	return JMP_IND_LONG(ADDR_getAbsoluteIndirectLong, 6); break;
 		case 0xdd:	return CMP(ADDR_getAbsoluteIndexedX, 4 + regs.P.isMReset() + pageBoundaryCrossed()); break;
 		case 0xde:	return DEC(ADDR_getAbsoluteIndexedX, 7 + (2 * regs.P.isMReset()) + pageBoundaryCrossed()); break;
 		case 0xdf:	return CMP(ADDR_getAbsoluteLongIndexedX, 5 + regs.P.isMReset()); break;

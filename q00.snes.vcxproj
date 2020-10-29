@@ -114,6 +114,7 @@
       <ConformanceMode>true</ConformanceMode>
       <StructMemberAlignment>Default</StructMemberAlignment>
       <AdditionalIncludeDirectories>D:\q00.snes\q00.snes\SDL2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>-Wno-pragma-pack %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

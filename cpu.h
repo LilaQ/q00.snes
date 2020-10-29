@@ -141,10 +141,10 @@ struct Registers
 				}
 
 				//	helper, to reduce clutter
-				bool isMReset() {
+				inline bool isMReset() {
 					return M == 0;
 				}
-				bool isXReset() {
+				inline bool isXReset() {
 					return X == 0;
 				}
 		};
