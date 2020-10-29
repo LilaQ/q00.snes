@@ -44,18 +44,15 @@ u16 CPU_getPC() {
 void pushToStack(u8 val) {
 	regs.setSP(regs.getSP() - 1);
 	BUS_writeToMem(val, regs.getSP() + 1);
-	printf("Pushing to stack %x at %x\n", val, regs.getSP());
 }
 void pushToStack(u16 val) {
 	regs.setSP(regs.getSP() - 2);
 	BUS_writeToMem(val >> 8, regs.getSP() + 2);
 	BUS_writeToMem(val & 0xff, regs.getSP() + 1);
-	printf("Pushing to stack %x %x at %x\n", val >> 8, val & 0xff, regs.getSP());
 }
 u8 pullFromStack() {
 	u8 val = BUS_readFromMem(regs.getSP() + 1);
 	regs.setSP(regs.getSP() + 1);
-	printf("Pulling from stack %x at %x\n", val, regs.getSP());
 	return val;
 }
 //	return P as readable string
@@ -63,20 +60,20 @@ inline const std::string byteToBinaryString(u8 val) {
 
 	//	alpha representation (bsnes-like)
 	std::string s = "";
-	s += regs.P.getNegative() ? "N" : "n";
-	s += regs.P.getOverflow() ? "V" : "v";
+	s += regs.P.getNegative() ? "N" : ".";
+	s += regs.P.getOverflow() ? "V" : ".";
 	if (regs.P.getEmulation()) {
 		s += "1";
-		s += regs.P.getBreak() ? "B" : "b";
+		s += regs.P.getBreak() ? "B" : ".";
 	}
 	else {
-		s += regs.P.getAccuMemSize() ? "M" : "m";
-		s += regs.P.getIndexSize() ? "X" : "x";
+		s += regs.P.getAccuMemSize() ? "M" : ".";
+		s += regs.P.getIndexSize() ? "X" : ".";
 	}
-	s += regs.P.getDecimal() ? "D" : "d";
-	s += regs.P.getIRQDisable() ? "I" : "i";
-	s += regs.P.getZero() ? "Z" : "z";
-	s += regs.P.getCarry() ? "C" : "c";
+	s += regs.P.getDecimal() ? "D" : ".";
+	s += regs.P.getIRQDisable() ? "I" : ".";
+	s += regs.P.getZero() ? "Z" : ".";
+	s += regs.P.getCarry() ? "C" : ".";
 
 	//	binary representation
 	/*string s = "";
@@ -343,6 +340,8 @@ u8 PLY() {
 
 //	reset status bits (reset all bits set in the immediate value)
 u8 REP() {
+	if (regs.PC > 0x8a00)
+		printf("hol");
 	u8 v = BUS_readFromMem(regs.PC+1);
 	bool N = ((u8)regs.P.getNegative() & ~((v >> 7) & 1)) > 0;
 	bool V = ((u8)regs.P.getOverflow() & ~((v >> 6) & 1)) > 0;
@@ -1935,7 +1934,7 @@ bool pageBoundaryCrossed() {
 u8 CPU_step() {
 	std::string flags = byteToBinaryString(regs.P.getByte());
 	//printf("Op: %02x %02x %02x %02x  PC : 0x%04x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s %04X \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), BUS_readFromMem(0x2140));
+	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
 	if (!CPU_STOPPED) {
 		switch (BUS_readFromMem((regs.PB << 16) | regs.PC)) {
 

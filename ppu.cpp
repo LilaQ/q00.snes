@@ -112,7 +112,7 @@ void PPU_init(std::string filename) {
 		MAIN WINDOW
 	*/
 	//SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
-	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	SDL_Init(SDL_INIT_VIDEO);
 	/*window = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, 256, 239, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);*/
@@ -207,7 +207,7 @@ inline u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
 	return CGRAM[(id + palette * bpp) + palette_offset] << 1 | (id > 0);
 }
 
-void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
+void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -233,7 +233,7 @@ void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u8 bg_size_w, u8 b
 	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
 	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
-void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u8 bg_size_w, u8 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
+void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps

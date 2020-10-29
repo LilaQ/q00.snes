@@ -115,10 +115,10 @@ struct Registers
 				}
 				void setIndexSize(bool val, Registers* regs) {
 					//	high bytes get reset on change from 8-bit to 16-bit or vice versa
-					X = val;
-					if (X) {
+					if (val != X) {
 						regs->clearXYhighBytesOnModeChange();
 					}
+					X = val;
 				}
 				void setDecimal(u8 val) {
 					D = val & 1;
