@@ -1,16 +1,30 @@
+#pragma once
 #ifndef LIB_MMU
 #define LIB_MMU
-
 
 #include <stdint.h>
 #include <string>
 #include <map>
 #include <iostream>
+#include <vector>
+#include <stdio.h>
+#include <iostream>
+#include <fstream>
+#include <iterator>
+#include "spc700_bus.h"
+#include "cpu.h"
+#include "bus.h"
+#include "ppu.h"
+#include "apu.h"
+#include "input.h"
+#include "wmu.h"
+#define _CRT_SECURE_NO_DEPRECATE
 
 typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
 
+extern std::vector<u8> memory;
 
 struct DMA {
 
@@ -230,18 +244,16 @@ public:
 
 };
 
-//	vectors
-//	TODO set by cartridge header
-static const u16 VECTOR_NATIVE_COP = 0xffe4;
-static const u16 VECTOR_NATIVE_BRK = 0xffe6;
-static const u16 VECTOR_NATIVE_ABORT = 0xffe8;
-static const u16 VECTOR_NATIVE_NMI = 0xffea;
-static const u16 VECTOR_NATIVE_IRQ = 0xffee;
-static const u16 VECTOR_EMU_COP = 0xfff4;
-static const u16 VECTOR_EMU_ABORT = 0xfff8;
-static const u16 VECTOR_EMU_NMI = 0xfffa;
-static const u16 VECTOR_EMU_RESET = 0xfffc;
-static const u16 VECTOR_EMU_IRQBRK = 0xfffe;
+extern const u8* P_VECTOR_NATIVE_COP;
+extern const u8* P_VECTOR_NATIVE_BRK;
+extern const u8* P_VECTOR_NATIVE_ABORT;
+extern const u8* P_VECTOR_NATIVE_NMI;
+extern const u8* P_VECTOR_NATIVE_IRQ;
+extern const u8* P_VECTOR_EMU_COP;
+extern const u8* P_VECTOR_EMU_ABORT;
+extern const u8* P_VECTOR_EMU_NMI;
+extern const u8* P_VECTOR_EMU_RESET;
+extern const u8* P_VECTOR_EMU_IRQBRK;
 
 //	base methods
 void BUS_reset(std::string filename);

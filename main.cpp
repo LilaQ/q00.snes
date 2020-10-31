@@ -1,17 +1,4 @@
-#include <string>
-#include <chrono>
-#include "spc700_cpu.h"
-#include "spc700_bus.h"
-#include "bus.h"
-#include "cpu.h"
-#include "ppu.h"
-#include "wmu.h"
-#include "apu.h"
-#include <iostream>
-#include <cstdint>
-//#include "SDL2/include/SDL_syswm.h"
-//#include "SDL2/include/SDL.h"
-#undef main
+#include "main.h"
 
 //		Kroms tests from https://github.com/PeterLemon/SNES/tree/master/CPUTest/CPU
 //string filename = "CPUADC.sfc";		//	-	Passed
@@ -48,7 +35,8 @@
 //string filename = "8x8BGMap8BPP64x32.sfc";
 //string filename = "8x8BGMap8BPP64x64.sfc";
 //string filename = "8x8BGMap8BPP32x328PAL.sfc";
-std::string filename = "smw.smc";
+//std::string filename = "smw.smc";
+std::string filename = "smwsfc.sfc";
 //string filename = "snestest.smc";
 
 //string filename = "HiColor575MystSub.sfc";

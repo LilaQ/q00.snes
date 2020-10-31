@@ -1,10 +1,14 @@
+#pragma once
 #ifndef LIB_CPU
 #define LIB_CPU
 
 #include <stdint.h>
 #include <stdio.h>
+#include <map>
 #include "bus.h"
 
+
+typedef int8_t		i8;
 typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
@@ -14,22 +18,61 @@ struct Status;
 struct Interrupts
 {
 public:
-	static u8 const NMI = 0b10;
-	static u8 const IRQ = 0b01;
 
-	static u8 interrupt_value;
-	static void set(u8 mask) {
-		interrupt_value |= mask;
+	static bool NMI_FLAGGED;
+	static bool H_FLAGGED;
+	static bool V_FLAGGED;
+
+	static bool NMI_ENABLED;
+	static bool H_ENABLED;
+	static bool V_ENABLED;
+
+	static bool isNMIFlagged() {
+		return NMI_FLAGGED;
 	}
-	static u8 get() {
-		return (NMI << 1) | IRQ;
+	static void setNMIFlag() {
+		NMI_FLAGGED = true;
 	}
-	static bool is(u8 mask) {
-		return (interrupt_value & mask) > 0;
+	static void clearNMIFlag() {
+		NMI_FLAGGED = false;
 	}
-	static void clear(u8 mask) {
-		interrupt_value &= ~mask;
+	static bool isHFlagged() {
+		return H_FLAGGED;
 	}
+	static void setHFlag() {
+		H_FLAGGED = true;
+	}
+	static void clearHFlag() {
+		H_FLAGGED = false;
+	}
+	static bool isVFlagged() {
+		return V_FLAGGED;
+	}
+	static void setVFlag() {
+		V_FLAGGED = true;
+	}
+	static void clearVFlag() {
+		V_FLAGGED = false;
+	}
+	static void setNMI(bool val) {
+		NMI_ENABLED = val;
+	}
+	static bool isNMIEnabled() {
+		return NMI_ENABLED;
+	}
+	static void setH(bool val) {
+		H_ENABLED = val;
+	}
+	static bool isHEnabled() {
+		return H_ENABLED;
+	}
+	static void setV(bool val) {
+		V_ENABLED = val;
+	}
+	static bool isVEnabled() {
+		return V_ENABLED;
+	}
+
 };
 
 struct Registers
@@ -242,6 +285,13 @@ struct Registers
 		}
 };
 
+#define VECTOR_NATIVE_NMI (*(P_VECTOR_NATIVE_NMI+1) << 8) | *(P_VECTOR_NATIVE_NMI);
+#define VECTOR_EMU_NMI (*(P_VECTOR_EMU_NMI+1) << 8) | *(P_VECTOR_EMU_NMI);
+#define VECTOR_EMU_COP (*(P_VECTOR_EMU_COP+1) << 8) | *(P_VECTOR_EMU_COP);
+#define VECTOR_NATIVE_COP (*(P_VECTOR_NATIVE_COP+1) << 8) | *(P_VECTOR_NATIVE_COP);
+#define VECTOR_EMU_IRQBRK (*(P_VECTOR_EMU_IRQBRK+1) << 8) | *(P_VECTOR_EMU_IRQBRK);
+#define VECTOR_NATIVE_BRK (*(P_VECTOR_NATIVE_BRK+1) << 8) | *(P_VECTOR_NATIVE_BRK);
+#define VECTOR_EMU_RESET (*(P_VECTOR_EMU_RESET+1) << 8) | *(P_VECTOR_EMU_RESET);
 
 u8 CPU_step();
 void resetCPU();

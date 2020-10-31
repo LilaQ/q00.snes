@@ -1,4 +1,7 @@
 #pragma once
+#ifndef LIB_APU
+#define LIB_APU
+
 #include <stdint.h>
 void initAPU();
 void stepAPU(unsigned char cycles);
@@ -18,3 +21,5 @@ void resetSC3linearReload();
 void resetSC1Ctrl();
 void resetSC4Ctrl();
 void resetChannelEnables();
+
+#endif

@@ -1,20 +1,4 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <iostream>
-#include <string>
-#include <algorithm>
-#include "SDL2/include/SDL.h"
-#include "bus.h"
 #include "ppu.h"
-#include "wmu.h"
-#include "cpu.h"
-#include "input.h"
-#include "main.h"
-#ifdef _WIN32
-	#include <Windows.h>
-	#include <WinUser.h>
-	#include "SDL2/include/SDL_syswm.h"
-#endif // _WIN32
 
 //	init PPU
 u16 VRAM[0x8000];	//	64 kbytes (16bit * 0x8000 [ 32768 ] )
@@ -438,14 +422,14 @@ void PPU_step(u8 steps) {
 			RENDER_X = 0;
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
-				Interrupts::set(Interrupts::NMI);
+				Interrupts::setNMIFlag();
 				//printf("VBlank %d\n", ++vbl);
 				frameRendered();
 			}
 			else if (RENDER_Y == 312) {				//	PAL System has 312 lines
 				RENDER_Y = 0;
 				VBlankNMIFlag = false;
-				Interrupts::clear(Interrupts::NMI);
+				Interrupts::clearNMIFlag();
 				BUS_resetHDMA();					//	A new frame will begin, we can safely reset our HDMAs now
 			}
 		}

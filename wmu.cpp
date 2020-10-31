@@ -1,21 +1,4 @@
-#define _CRT_SECURE_NO_DEPRECATE
-#include "SDL2/include/SDL.h"
-#include <string>
-#include <string.h>
-#include <thread>
-#ifdef _WIN32
-	#include <Windows.h>
-	#include <WinUser.h>
-	#include "SDL2/include/SDL_syswm.h"
-#endif // _WIN32
-#include "commctrl.h"
-#include "ppu.h"
-#include "cpu.h"
-#include "bus.h"
-#include "input.h"
-#include "commctrl.h"
 #include "wmu.h"
-#undef main
 
 SDL_Window* mainWindow;				//	Main Window
 SDL_Event event;					//	Eventhandler for all SDL events

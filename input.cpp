@@ -1,5 +1,4 @@
-#include "SDL2/include/SDL.h"
-#include "bus.h"
+#include "input.h"
 
 bool a1, b1, x1, y_1, select1, start1, up1, down1, left1, right1, shoulder_l1, shoulder_r1;
 bool a2, b2, x2, y2, select2, start2, up2, down2, left2, right2, shoulder_l2, shoulder_r2;

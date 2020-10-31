@@ -1,8 +1,11 @@
+#pragma once
 #ifndef LIB_SPC700
 #define LIB_SPC700
 
 #include <stdint.h>
 #include <stdio.h>
+#include "spc700_bus.h"
+#include <string>
 
 typedef uint8_t		u8;
 typedef uint16_t	u16;
@@ -50,7 +53,6 @@ public:
 	u16 PC = 0xFFC0;		//	Program Counter
 	SPC700_Status PSW;		//	Program Status
 };
-
 
 void SPC700_RESET();
 u8 SPC700_TICK();

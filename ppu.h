@@ -1,10 +1,27 @@
+#pragma once
 #ifndef LIB_PPU
 #define LIB_PPU
 
-#include <string>
 #include <vector>
 #include <functional>
+#include <stdint.h>
+#include <stdio.h>
+#include <iostream>
+#include <string>
+#include <algorithm>
 #include "SDL2/include/SDL.h"
+#include "bus.h"
+#include "ppu.h"
+#include "wmu.h"
+#include "cpu.h"
+#include "input.h"
+#include "main.h"
+#ifdef _WIN32
+	#include <Windows.h>
+	#include <WinUser.h>
+	#include "SDL2/include/SDL_syswm.h"
+#endif // _WIN32
+
 typedef uint8_t		u8;
 typedef uint16_t	u16;
 typedef uint32_t	u32;
