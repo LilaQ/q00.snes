@@ -469,7 +469,7 @@ u8 ADC(u32(*f)(), u8 cycles) {
 		regs.setAccumulator((u8)(res & 0xff));
 	}
 	else {
-		u16 adr = f();
+		u32 adr = f();
 		u8 lo = BUS_readFromMem(adr);
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 val = (hi << 8) | lo;
@@ -535,7 +535,7 @@ u8 SBC(u32(*f)(), u8 cycles) {
 		regs.setAccumulator((u8)(res & 0xff));
 	}
 	else {
-		u16 adr = f();
+		u32 adr = f();
 		u8 lo = BUS_readFromMem(adr);
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 val = (hi << 8) | lo;
@@ -1838,7 +1838,7 @@ u32 ADDR_getAbsoluteIndexedIndirectX() {	//	verified
 	regs.PC += 2;
 	u8 lo = BUS_readFromMem((regs.PB << 16) | regs.PC - 1);
 	u8 hi = BUS_readFromMem((regs.PB << 16) | regs.PC);
-	u16 adr = (regs.PB << 16) | (hi << 8) | lo + regs.getX();
+	u32 adr = (regs.PB << 16) | (hi << 8) | lo + regs.getX();
 	u8 i_lo = BUS_readFromMem(adr);
 	u8 i_hi = BUS_readFromMem(adr + 1);
 	return (regs.PB << 16) | (i_hi << 8) | i_lo;
@@ -1928,9 +1928,9 @@ u8 CPU_step() {
 
 	std::string flags = byteToBinaryString(regs.P.getByte());
 	//printf("Op: %02x %02x %02x %02x  PC : 0x%06x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), (regs.PB << 16) | regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
+	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
 
-	if (regs.PC == 0x813c && regs.PB == 5)
+	if (regs.PC == 0x8791 && regs.PB == 5)
  		printf("holup");
 
 	if (!CPU_STOPPED) {
