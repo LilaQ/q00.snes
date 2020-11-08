@@ -93,11 +93,10 @@ int main()
 				lastcyc = CPU_step();
 
 				//	TODO fix this correlation - here is ~40fps laying around in kroms INSTR tests
-				ppu_cycles_left += lastcyc * 6;	//	multiply by 6 to go from CPU cycle to master cycle, then divide by 4 to go to dot-cycles
-				PPU_step(ppu_cycles_left >> 2);
-				ppu_cycles_left -= (ppu_cycles_left >> 2);
+				const u16 master_cycles = lastcyc * 6;
+				PPU_step(master_cycles >> 2);	//	divide by 4 to go to dot-cycles
 
-				sched_CPU_SPC -= lastcyc * 6 * 24576000;
+				sched_CPU_SPC -= master_cycles * 24576000;
 			}
 			else {
 

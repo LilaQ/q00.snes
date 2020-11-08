@@ -96,7 +96,7 @@ void PPU_init(std::string filename) {
 		MAIN WINDOW
 	*/
 	//SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
-	//SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	SDL_Init(SDL_INIT_VIDEO);
 	/*window = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, 256, 239, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);*/
@@ -299,8 +299,15 @@ const void getPixelDISABLED(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u1
 const void getPixel2BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
-	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
-						((scrolled_x & 0b1111'1111) / 8);
+	u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
+					((scrolled_x & 0b1111'1111) / 8);
+	
+	if (scrolled_x > 0xff)
+		offset += 0x400;
+	if (scrolled_y > 0xff)
+		offset += 0x800;
+
+
 	const u16 fByte = VRAM[bg_base + offset];
 	const u16 tile_id = fByte & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (fByte >> 10) & 0b111;
@@ -319,8 +326,14 @@ const void getPixel2BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
-	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
-						((scrolled_x & 0b1111'1111) / 8);
+	u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
+					((scrolled_x & 0b1111'1111) / 8);
+
+	if (scrolled_x > 0xff)
+		offset += 0x400;
+	if (scrolled_y > 0xff)
+		offset += 0x800;
+
 	const u16 tile_base_adr = bg_base + offset;
 	const u16 fByte = VRAM[tile_base_adr];
 	const u16 tile_id = fByte & 0x3ff;					//	mask bits that are for index
@@ -350,8 +363,14 @@ const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 const void getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
-	const u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
-						((scrolled_x & 0b1111'1111) / 8);
+	u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
+					((scrolled_x & 0b1111'1111) / 8);
+
+	if (scrolled_x > 0xff)
+		offset += 0x400;
+	if (scrolled_y > 0xff)
+		offset += 0x800;
+
 	const u16 tile_id = VRAM[bg_base + offset] & 0x3ff;					//	mask bits that are for index
 	const u8 b_palette_nr = (VRAM[bg_base + offset] >> 10) & 0b111;
 	const u8 b_flip_x = (VRAM[bg_base + offset] >> 14) & 1;				//	0 - normal, 1 - mirror horizontally
@@ -423,7 +442,6 @@ void PPU_step(u8 steps) {
 			if (++RENDER_Y == 241) {				//	V-Blank starts
 				VBlankNMIFlag = true;
 				Interrupts::setNMIFlag();
-				//printf("VBlank %d\n", ++vbl);
 				frameRendered();
 			}
 			else if (RENDER_Y == 312) {				//	PAL System has 312 lines
@@ -435,8 +453,16 @@ void PPU_step(u8 steps) {
 		}
 		if (RENDER_Y < 241 && RENDER_X < 256) {		//	Only render current pixel(s) if we're not in any blanking period
 
-			const bool in_W1 = window.W1_LEFT <= RENDER_X && RENDER_X <= window.W1_RIGHT;
-			const bool in_W2 = window.W2_LEFT <= RENDER_X && RENDER_X <= window.W2_RIGHT;
+			const bool in_W1 = (window.W1_LEFT <= RENDER_X && RENDER_X <= window.W1_RIGHT) && window.W1_RIGHT > window.W1_LEFT;
+			const bool in_W2 = (window.W2_LEFT <= RENDER_X && RENDER_X <= window.W2_RIGHT) && window.W2_RIGHT > window.W2_LEFT;
+
+			/*
+			When W1En and W2En are both false, the output of the block above WinLog is forced to be false. 
+			(That is, the state of WxIO and WinLog doesn't matter.) This means the input to the blocks by the 
+			Main/SubSW have false as an input, so the four outputs could be true, false, true, false. Additionally, 
+			the two unnamed switches on the layer data between the Priority Circuits and the TM/TS switches are 
+			forced to be closed. (That is, the state of TSW and TMW don't matter.)
+			*/
 
 			bool BG1Mux = false;
 			bool BG2Mux = false;
@@ -489,7 +515,7 @@ void PPU_step(u8 steps) {
 			}
 			
 			//	pipe the window in, pixel again will become transparent of not enabled at this point
-			if(!(MainWinBG1 || (!window.w1en[0] && !window.w2en[0])) || !window.tm[0])
+			if (!(MainWinBG1 || (!window.w1en[0] && !window.w2en[0])) || !window.tm[0])
 				main_pixel_bg1.color = 0;
 			else 
 				main_pixel_bg1 = src_pixel_bg1;
@@ -509,7 +535,7 @@ void PPU_step(u8 steps) {
 				main_pixel_obj.color = 0;
 			else
 				main_pixel_obj = src_pixel_obj;
-			if(!(SubWinBG1 || (!window.w1en[0] && !window.w2en[0])) || !window.ts[0])
+			if (!(SubWinBG1 || (!window.w1en[0] && !window.w2en[0])) || !window.ts[0])
 				sub_pixel_bg1.color = 0;
 			else
 				sub_pixel_bg1 = src_pixel_bg1;
@@ -534,8 +560,10 @@ void PPU_step(u8 steps) {
 			PIXEL p_main = getPixelByPriority(BG_MODE_ID, main_pixel_bg1, main_pixel_bg2, main_pixel_bg3, main_pixel_bg4, main_pixel_obj, backdrop_pixel, BG3_PRIORITY);
 			PIXEL p_sub = (window.fixSub == 0) ? fixedcolor_pixel : getPixelByPriority(BG_MODE_ID, sub_pixel_bg1, sub_pixel_bg2, sub_pixel_bg3, sub_pixel_bg4, sub_pixel_obj, fixedcolor_pixel, BG3_PRIORITY);
 		
-			p_main.color &= ~(u16)window.mainSW(SELMux);
-			p_sub.color &= ~(u16)window.subSW(SELMux);
+			if (window.mainSW(SELMux))
+				p_main.color = 0x0000;
+			if (window.subSW(SELMux))
+				p_sub.color = 0x0000;
 
 			u8 sr = (p_main.color >> 1) & 0b11111;
 			u8 sg = (p_main.color >> 6) & 0b11111;
@@ -593,7 +621,6 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 		if (adr == 0x0)	//	store backdrop separately for color math
 			backdrop_pixel.color = (CGRAM[0x00] << 1) | 1;
 	}
-	//printf("Write CGRAM: %x\n", val);
 }
 
 u16 PPU_readCGRAM(u8 adr) {

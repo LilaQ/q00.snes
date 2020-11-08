@@ -32,7 +32,7 @@ public:
 	bool enabled = false;
 	bool repeat = false;
 	bool terminated = false;
-	u8 directon = 0;
+	u8 direction = 0;
 	u8 addressing_mode = 0;
 	u8 dma_mode = 0;
 	u8 IO = 0;

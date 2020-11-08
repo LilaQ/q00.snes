@@ -1292,8 +1292,6 @@ u8 TYX() {
 
 //	Load accumulator from memory
 u8 LDA(u32 (*f)(), u8 cycles) {
-	if (regs.PC >= 0xd841 && regs.PB == 5)
-		printf("frrr");
 
 	u32 adr = f();
 	if (regs.P.getAccuMemSize()) {
@@ -1402,8 +1400,6 @@ u8 STY(u32 (*f)(), u8 cycles) {
 
 //	Branch if not equal (Z = 0)
 u8 BNE(u32 (*f)(), u8 cycles) {
-	if (regs.PC >= 0xd840 && regs.PB == 0x5)
-		printf("holdup");
 
 	u8 branch_taken = 0;
 	u8 pb = regs.PB;
@@ -1926,12 +1922,13 @@ u8 CPU_step() {
 			Interrupts::clearNMIFlag();
 		}
 
-	std::string flags = byteToBinaryString(regs.P.getByte());
+	//std::string flags = byteToBinaryString(regs.P.getByte());
 	//printf("Op: %02x %02x %02x %02x  PC : 0x%06x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), (regs.PB << 16) | regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
 	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
 
-	if (regs.PC == 0x8791 && regs.PB == 5)
- 		printf("holup");
+	//if (regs.PC == 0x8079 && regs.PB == 0)
+	//	//printf("holup");
+	//	exit(1);
 
 	if (!CPU_STOPPED) {
 		switch (BUS_readFromMem((regs.PB << 16) | regs.PC)) {
