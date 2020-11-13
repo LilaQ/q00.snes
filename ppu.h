@@ -60,6 +60,12 @@ void PPU_writeWindowMaskLogicOBJSEL(u8 val);
 void PPU_writeMainscreenDisable(u8 val);
 void PPU_writeSubscreenDisable(u8 val);
 void PPU_writeSubscreenFixedColor(u8 val);
+void PPU_writeOAMAddressLow(u8 val);
+void PPU_writeOAMAddressHigh(u8 val);
+void PPU_writeOAM(u8 val);
+void PPU_writeOAMOBSEL(u8 val);
+u8 PPU_readOAM();
+u8 PPU_readOAM(u16 addr);
 
 //	debug
 void debug_drawBG(u8 id);
@@ -149,6 +155,20 @@ struct COLOR_MATH {
 	bool add_sub;
 	bool halfEn;
 	
+};
+
+struct OBJECT {
+	u16 x_pos;
+	u16 x_max;
+	u8 x_width;
+	u8 y_pos;
+	u8 y_max;
+	u8 y_width;
+	u16 tile_nr;
+	bool x_flip;
+	bool y_flip;
+	u8 priority;
+	u8 palette;
 };
 
 /*

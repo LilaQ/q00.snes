@@ -3,6 +3,7 @@
 //	init PPU
 u16 VRAM[0x8000];	//	64 kbytes (16bit * 0x8000 [ 32768 ] )
 u16 CGRAM[0x100];	//	512 bytes (16bit * 0x100 [ 256 ] ) 
+u8 OAM[0x220];		//	544 bytes (128 * 4bytes per object + 32kybtes attribute table)
 u8 CGRAM_Lsb;
 bool CGRAM_Flipflop = false;
 const int FB_SIZE = 256 * 256;
@@ -52,6 +53,13 @@ const u8 BG_PALETTE_OFFSET[][4] = {
 	{0, 0, 0, 0}
 };
 
+//	OAM
+u16 OAM_BASE;
+u16 OAM_ADDR;
+u16 OAM_Lsb;
+u8 OAM_OBSEL;
+OBJECT OAM_OBJECTS[128];
+
 //	Window
 COLOR_MATH window;
 PIXEL backdrop_pixel;
@@ -98,6 +106,7 @@ void PPU_init(std::string filename) {
 	//SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengles2");
 	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 	SDL_Init(SDL_INIT_VIDEO);
+	//SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2");
 	/*window = SDL_CreateWindow("poop", SDL_WINDOWPOS_CENTERED, 100, 256, 239, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);*/
 	SDL_CreateWindowAndRenderer(256, 239, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC, &sdl_window, &renderer);
@@ -151,10 +160,13 @@ void PPU_reset() {
 	CGRAM_Lsb = 0;
 	CGRAM_Flipflop = false;
 	memset(FULL_CALC, 0, sizeof(FULL_CALC));
+	memset(VRAM, 0, sizeof(VRAM));
+	memset(OAM, 0, sizeof(OAM));
+	memset(CGRAM, 0, sizeof(CGRAM));
 	FULL_CALC_TEX = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, 256, 239);
 }
 
-void processMosaic(u32 *BG) {
+void PPU_processMosaic(u32 *BG) {
 	for (u16 x = 0; x < 256; x += MOSAIC_SIZE) {
 		for (u16 y = 0; y < 256; y += MOSAIC_SIZE) {
 			u16 pos = y * 256 + x;
@@ -182,16 +194,16 @@ void PPU_drawFrame() {
 	
 }
 const u8 ALPHA_LUT[2] = {0, 255};
-void writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u8 _r, const u8 _g, const u8 _b, const u8 _a) {
+void PPU_writeToFB(u32 *BG, const u16 x, const u16 y, const u16 width, const u8 _r, const u8 _g, const u8 _b, const u8 _a) {
 	BG[y * width + x] = FIVEBIT_TO_EIGHTBIT_LUT[MASTER_BRIGHTNESS][_r] | (FIVEBIT_TO_EIGHTBIT_LUT[MASTER_BRIGHTNESS][_g] << 8) | (FIVEBIT_TO_EIGHTBIT_LUT[MASTER_BRIGHTNESS][_b] << 16) | (ALPHA_LUT[_a] << 24);
 }
 
-inline u16 getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
+inline u16 PPU_getRGBAFromCGRAM(u32 id, u8 palette, u8 bpp, u8 palette_offset) {
 	//if (id == 0) return 0x00000000;	//	id 0 = transparency
 	return CGRAM[(id + palette * bpp) + palette_offset] << 1 | (id > 0);
 }
 
-void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
+void PPU_renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -214,10 +226,10 @@ void renderBGat2BPP(u16 scrx, u16 scry, u32 *BG, u16 bg_base, u16 bg_size_w, u16
 	const u8 b_hi = VRAM[tile_address] >> 8;
 	const u8 b_lo = VRAM[tile_address] & 0xff;
 	const u8 v = ((b_lo >> h_shift) & 1) + (2 * ((b_hi >> h_shift) & 1));
-	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
-	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
+	const u16 color = PPU_getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	PPU_writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
-void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
+void PPU_renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -245,10 +257,10 @@ void renderBGat4BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16
 					(2 * ((b_2 >> h_shift) & 1)) +
 					(4 * ((b_3 >> h_shift) & 1)) +
 					(8 * ((b_4 >> h_shift) & 1));
-	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
-	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
+	const u16 color = PPU_getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
+	PPU_writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
-void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
+void PPU_renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16 bg_size_h, u16 tile_base, u16 scroll_x, u16 scroll_y, u16 texture_width, u8 palette_offset) {
 	const u16 orgx = scrx;												//	store original x/y position, so we can draw in the FB to it
 	const u16 orgy = scry;
 	scry = (scry + scroll_y) % (8 * bg_size_h);							//	scroll x and y, and adjust for line/column jumps
@@ -285,18 +297,18 @@ void renderBGat8BPP(u16 scrx, u16 scry, u32* BG, u16 bg_base, u16 bg_size_w, u16
 		(32 * ((b_6 >> h_shift) & 1)) +
 		(64 * ((b_7 >> h_shift) & 1)) +
 		(128 * ((b_8 >> h_shift) & 1));
-	const u16 color = getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
-	writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
+	const u16 color = PPU_getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
+	PPU_writeToFB(BG, orgx, orgy, texture_width, (color >> 1) & 0b11111, (color >> 6) & 0b11111, (color >> 11) & 0b11111, 1);
 }
 
 
-const void getPixelEXTBG(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
+const void PPU_getPixelEXTBG(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 }
-const void getPixelOPT(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
+const void PPU_getPixelOPT(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 }
-const void getPixelDISABLED(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
+const void PPU_getPixelDISABLED(u16 scrx, u16 scry, u16& bg_base, u16& bg_size_w, u16& bg_size_h, u16& tile_base, u16& scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 }
-const void getPixel2BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
+const void PPU_getPixel2BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
 	u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
@@ -320,10 +332,10 @@ const void getPixel2BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 	const u16 tile_address = tile_id * 8 + tile_base + v_shift;	
 	const u16 byte = VRAM[tile_address];
 	const u8 v = 2 * (((byte >> 8) >> h_shift) & 1) + ((((byte & 0xff) >> h_shift) & 1));
-	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
+	pixel.color = PPU_getRGBAFromCGRAM(v, b_palette_nr, 4, palette_offset);
 	pixel.priority = (fByte >> 13) & 1;				//	0 - lower, 1 - higher
 }
-const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
+const void PPU_getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
 	u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
@@ -357,10 +369,10 @@ const void getPixel8BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 		((((byte3 >> 8) >> h_shift) & 1) << 5) +
 		((((byte4 & 0xff) >> h_shift) & 1) << 6) +
 		((((byte4 >> 8) >> h_shift) & 1) << 7);
-	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
+	pixel.color = PPU_getRGBAFromCGRAM(v, b_palette_nr, 64, palette_offset);
 	pixel.priority = (fByte >> 13) & 1;				//	0 - lower, 1 - higher
 }
-const void getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL &pixel) {
+const void PPU_getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &bg_size_h, u16 &tile_base, u16 &scroll_x, const u16 scroll_y, const u8 palette_offset, PIXEL& pixel) {
 	const u16 scrolled_x = (RENDER_X + scroll_x) & bg_size_w;			//	store original x/y position, so we can draw in the FB to it
 	const u16 scrolled_y = (RENDER_Y + scroll_y) & bg_size_h;
 	u16 offset =	((scrolled_y & 0b1111'1111) / 8) * 32 +
@@ -384,48 +396,145 @@ const void getPixel4BPP(u16 scrx, u16 scry, u16 &bg_base, u16 &bg_size_w, u16 &b
 					((((VRAM[tile_address] >> 8)		>> h_shift) & 1) << 1) +
 					((((VRAM[tile_address + 8] & 0xff)	>> h_shift) & 1) << 2) +
 					((((VRAM[tile_address + 8] >> 8)	>> h_shift) & 1) << 3);
-	pixel.color = getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
+	pixel.color = PPU_getRGBAFromCGRAM(v, b_palette_nr, 16, palette_offset);
 	pixel.priority = (VRAM[bg_base + offset] >> 13) & 1;			//	0 - lower, 1 - higher
 }
 
+const void PPU_getPixelOBJ(u16 scrx, u16 scry, PIXEL& pixel) {
+	pixel.color = 0x0000;
+	pixel.priority = 0;
+	for (auto i = 127; i >= 0; i--) {
+		OBJECT* obj = &OAM_OBJECTS[i];
+		if ((obj->priority >= pixel.priority) && (scrx >= obj->x_pos) && (scrx < obj->x_max) && (scry >= obj->y_pos) && (scry < obj->y_max)) {
+
+			u8 x = scrx - obj->x_pos;
+			u8 y = scry - obj->y_pos;
+
+			if (obj->x_flip)
+				x = obj->x_width - x - 1;
+			if (obj->y_flip)
+				y = obj->y_width - y - 1;
+
+			const u8 shift_x = 7-(x % 8);
+			OAM_BASE = 0xc000 / 2;
+			const u16 tile_address = OAM_BASE + (obj->tile_nr + x / 8) * 0x10 + (y % 8) + (y / 8 * 0x100); //  +(offset_x / 8 * 0x10) + (offset_y / 8 * 0x100); //OAM_BASE + obj->tile_nr * 16 + (obj->y_pos % 8);
+			const u8 b_1 = VRAM[tile_address] & 0xff;
+			const u8 b_2 = VRAM[tile_address] >> 8;
+			const u8 b_3 = VRAM[tile_address + 8] & 0xff;
+			const u8 b_4 = VRAM[tile_address + 8] >> 8;
+			const u16 v = (	(b_1 >> shift_x) & 1) +
+							(2 * ((b_2 >> shift_x) & 1)) +
+							(4 * ((b_3 >> shift_x) & 1)) +
+							(8 * ((b_4 >> shift_x) & 1));
+
+			u16 color = PPU_getRGBAFromCGRAM(v, obj->palette + 8, 16, 0);
+			//	pixel is opaque
+			if (color & 1) {
+				pixel.color = color;
+				pixel.priority = obj->priority;
+			}
+		}
+	}
+}
+
+const void PPU_reloadOAM() {
+
+	//	reload all 128 OBJs
+	for (auto i = 0; i < 128; i++) {
+
+		const u8 byte1 = OAM[(i * 4)];
+		const u8 byte2 = OAM[(i * 4) + 1];
+		const u8 byte3 = OAM[(i * 4) + 2];
+		const u8 byte4 = OAM[(i * 4) + 3];
+		const u8 attr = (OAM[512 + (i / 4)] >> ((i % 4) * 2)) & 0b11;
+
+		OAM_OBJECTS[i].x_pos = (((attr & 1) << 8) | byte1) & 0x1ff;
+		OAM_OBJECTS[i].y_pos = byte2;
+		OAM_OBJECTS[i].tile_nr = ((byte4 & 1) << 8) | byte3;
+		OAM_OBJECTS[i].y_flip = byte4 >> 7;
+		OAM_OBJECTS[i].x_flip = (byte4 >> 6) & 1;
+		OAM_OBJECTS[i].priority = (byte4 >> 4) & 0b11;
+		OAM_OBJECTS[i].palette = (byte4 >> 1) & 0b111;
+
+		switch ( ((attr >> 1) << 3) | (OAM_OBSEL >> 5) ) {
+		case 0: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 8; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 8; OAM_OBJECTS[i].x_width = 8; OAM_OBJECTS[i].y_width = 8; break;
+		case 1: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 8; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 8; OAM_OBJECTS[i].x_width = 8; OAM_OBJECTS[i].y_width = 8; break;
+		case 2: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 8; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 8; OAM_OBJECTS[i].x_width = 8; OAM_OBJECTS[i].y_width = 8; break;
+		case 3: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 16; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 16; OAM_OBJECTS[i].x_width = 16; OAM_OBJECTS[i].y_width = 16; break;
+		case 4: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 16; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 16; OAM_OBJECTS[i].x_width = 16; OAM_OBJECTS[i].y_width = 16; break;
+		case 5: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 32; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 32; OAM_OBJECTS[i].x_width = 32; OAM_OBJECTS[i].y_width = 32; break;
+		case 6: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 16; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 32; OAM_OBJECTS[i].x_width = 16; OAM_OBJECTS[i].y_width = 32; break;
+		case 7: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 16; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 32; OAM_OBJECTS[i].x_width = 16; OAM_OBJECTS[i].y_width = 32; break;
+		case 8: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 16; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 16; OAM_OBJECTS[i].x_width = 16; OAM_OBJECTS[i].y_width = 16; break;
+		case 9: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 32; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 32; OAM_OBJECTS[i].x_width = 32; OAM_OBJECTS[i].y_width = 32; break;
+		case 10: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 64; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 64; OAM_OBJECTS[i].x_width = 64; OAM_OBJECTS[i].y_width = 64; break;
+		case 11: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 32; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 32; OAM_OBJECTS[i].x_width = 32; OAM_OBJECTS[i].y_width = 32; break;
+		case 12: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 64; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 64; OAM_OBJECTS[i].x_width = 64; OAM_OBJECTS[i].y_width = 64; break;
+		case 13: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 64; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 64; OAM_OBJECTS[i].x_width = 64; OAM_OBJECTS[i].y_width = 64; break;
+		case 14: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 32; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 64; OAM_OBJECTS[i].x_width = 32; OAM_OBJECTS[i].y_width = 64; break;
+		case 15: OAM_OBJECTS[i].x_max = OAM_OBJECTS[i].x_pos + 32; OAM_OBJECTS[i].y_max = OAM_OBJECTS[i].y_pos + 32; OAM_OBJECTS[i].x_width = 32; OAM_OBJECTS[i].y_width = 32; break;
+		}
+		
+
+	}
+}
+
 template <u8 mode_id>
-void getPixel() {
+void PPU_getPixel() {
+	/*src_pixel_bg1.color = 0x0000;
+	src_pixel_bg2.color = 0x0000;
+	src_pixel_bg3.color = 0x0000;
+	src_pixel_bg4.color = 0x0000;
+	src_pixel_obj.color = 0x0000;
+	src_pixel_bg1.priority = 0;
+	src_pixel_bg2.priority = 0;
+	src_pixel_bg3.priority = 0;
+	src_pixel_bg4.priority = 0;
+	src_pixel_obj.priority = 0;*/
 	if constexpr (mode_id == 0) {
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[3], BG_TILES_H[3], BG_TILES_V[3], BG_TILEBASE[3], BGSCROLLX[3], BGSCROLLY[3] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][3], src_pixel_bg4);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[3], BG_TILES_H[3], BG_TILES_V[3], BG_TILEBASE[3], BGSCROLLX[3], BGSCROLLY[3] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][3], src_pixel_bg4);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 1) {
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 2) {
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
-		getPixelOPT(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixelOPT(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 3) {
-		getPixel8BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixel8BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 4) {
-		getPixel8BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
-		getPixelOPT(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixel8BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixelOPT(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 5) {
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixel2BPP(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 6) {
-		getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixelOPT(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixel4BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixelOPT(RENDER_X, RENDER_Y, BG_BASE[2], BG_TILES_H[2], BG_TILES_V[2], BG_TILEBASE[2], BGSCROLLX[2], BGSCROLLY[2] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][2], src_pixel_bg3);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 	else if constexpr (mode_id == 1) {
-		getPixel8BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
-		getPixelEXTBG(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixel8BPP(RENDER_X, RENDER_Y, BG_BASE[0], BG_TILES_H[0], BG_TILES_V[0], BG_TILEBASE[0], BGSCROLLX[0], BGSCROLLY[0] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][0], src_pixel_bg1);
+		PPU_getPixelEXTBG(RENDER_X, RENDER_Y, BG_BASE[1], BG_TILES_H[1], BG_TILES_V[1], BG_TILEBASE[1], BGSCROLLX[1], BGSCROLLY[1] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][1], src_pixel_bg2);
+		PPU_getPixelOBJ(RENDER_X, RENDER_Y, src_pixel_obj);
 	}
 }
 
@@ -443,6 +552,7 @@ void PPU_step(u8 steps) {
 				VBlankNMIFlag = true;
 				Interrupts::setNMIFlag();
 				frameRendered();
+				PPU_reloadOAM();					//	Reload OAM objects
 			}
 			else if (RENDER_Y == 312) {				//	PAL System has 312 lines
 				RENDER_Y = 0;
@@ -503,14 +613,14 @@ void PPU_step(u8 steps) {
 			//	get pixel (incl. priority) from current x/y
 			switch (BG_MODE_ID)
 			{
-			case 0: getPixel<0>(); break;
-			case 1: getPixel<1>(); break;
-			case 2: getPixel<2>(); break;
-			case 3: getPixel<3>(); break;
-			case 4: getPixel<4>(); break;
-			case 5: getPixel<5>(); break;
-			case 6: getPixel<6>(); break;
-			case 7: getPixel<7>(); break;
+			case 0: PPU_getPixel<0>(); break;
+			case 1: PPU_getPixel<1>(); break;
+			case 2: PPU_getPixel<2>(); break;
+			case 3: PPU_getPixel<3>(); break;
+			case 4: PPU_getPixel<4>(); break;
+			case 5: PPU_getPixel<5>(); break;
+			case 6: PPU_getPixel<6>(); break;
+			case 7: PPU_getPixel<7>(); break;
 			default: break;
 			}
 			
@@ -585,7 +695,7 @@ void PPU_step(u8 steps) {
 			}
 
 			//	write to framebuffer
-			writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, sr, sg, sb, 1);
+			PPU_writeToFB(FULL_CALC, RENDER_X, RENDER_Y, 256, sr, sg, sb, 1);
 		}
 		else if (RENDER_X == 0 && RENDER_Y == 241) {	//	Exclude drawing mechanism so every X/Y modification is done by this point
 			INPUT_stepJoypadAutoread();
@@ -622,9 +732,40 @@ void PPU_writeCGRAM(u8 val, u8 adr) {
 			backdrop_pixel.color = (CGRAM[0x00] << 1) | 1;
 	}
 }
-
 u16 PPU_readCGRAM(u8 adr) {
 	return CGRAM[adr];
+}
+
+void PPU_writeOAMOBSEL(u8 val) {
+	OAM_OBSEL = val;
+}
+void PPU_writeOAMAddressLow(u8 val) {
+	OAM_ADDR = (OAM_ADDR & 0xff00) | val;
+}
+void PPU_writeOAMAddressHigh(u8 val) {
+	OAM_ADDR = (OAM_ADDR & 0xff) | (val << 8);
+}
+void PPU_writeOAM(u8 val) {
+
+	if (OAM_ADDR % 2 == 0) {							//	Even Address 
+		OAM_Lsb = val;
+	}
+	else if(OAM_ADDR % 2 == 1 && OAM_ADDR < 0x200) {	//	Odd Address
+		OAM[OAM_ADDR - 1] = OAM_Lsb;
+		OAM[OAM_ADDR] = val;
+	}
+	if (OAM_ADDR > 0x1ff) {
+		OAM[OAM_ADDR] = val;
+	}
+	OAM_ADDR++;
+
+	//OAM[OAM_ADDR++ & 0x1ff] = val;
+}
+u8 PPU_readOAM() {
+	return OAM[OAM_ADDR++ & 0x1ff];
+}
+u8 PPU_readOAM(u16 addr) {
+	return OAM[addr];
 }
 
 void PPU_writeWindow1PositionLeft(u8 val) {
@@ -868,11 +1009,11 @@ void debug_drawBG(u8 bg_id) {
 		for (u16 y = 0; y < tex_h; y++) {
 			for (u16 x = 0; x < tex_w; x++) {
 				if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_2BPP_4_COLORS)
-					renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+					PPU_renderBGat2BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
 				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_4BPP_16_COLORS)
-					renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+					PPU_renderBGat4BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
 				else if (BG_MODE[bg_id] == PPU_COLOR_DEPTH::CD_8BPP_256_COLORS) {
-					renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
+					PPU_renderBGat8BPP(x, y, DEBUG, BG_BASE[bg_id], BG_TILES_H[bg_id] + 1, BG_TILES_V[bg_id] + 1, BG_TILEBASE[bg_id], 0, 0, BG_TILES_H[bg_id] + 1, BG_PALETTE_OFFSET[BG_MODE_ID][bg_id]);
 				}
 			}
 		}

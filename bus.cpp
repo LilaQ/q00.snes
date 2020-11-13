@@ -33,7 +33,7 @@ void BUS_reset() {
 	// experimental - wipe first 32k of memory, but only if CPU is not halted by STP instruction
 	if (!CPU_isStopped()) {
 		for (auto i = 0; i < 0x8000; i++)
-			memory[i] = 0x00;
+			BUS_writeToMem(0x00, i);
 	}
 	PPU_reset();
 	resetCPU();
@@ -160,6 +160,9 @@ u8 BUS_readFromMem(u32 fulladr) {
 		}
 
 		switch (adr) {
+		case 0x2138:			//	PPU - RDOAM - Read OAM Data (R)
+			PPU_readOAM();
+			break;
 		case 0x2139:			//	PPU - VMDATAL - VRAM Write - Low (R)
 		case 0x213a: {			//	PPU - VMDATAH - VRAM Write - High (R)
 			u16 adr = (memory[0x2117] << 8) | memory[0x2116];
@@ -218,6 +221,7 @@ u8 BUS_readFromMem(u32 fulladr) {
 		case 0x4200: {
 			//	TODO - This register also does Joypad Enable
 			return (interrupts.isNMIEnabled() << 7) | (interrupts.isVEnabled() << 5) | (interrupts.isHEnabled() << 4);
+			break;
 		}
 
 		case 0x4210: {			//	PPU Interrupts - V-Blank NMI Flag and CPU Version Number (R) [Read/Ack]
@@ -270,7 +274,18 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 		case 0x2100:				//	PPU - Forced Blanking	/ Master Brightness
 			PPU_writeINIDISP(val);
 			break;
-
+		case 0x2101:				//	PPU	- OBSEL - Object Size & Object Base
+			PPU_writeOAMOBSEL(val);
+			break;
+		case 0x2102:				//	PPU - OAMADDL / OAM Address Low
+			PPU_writeOAMAddressLow(val);
+			break;
+		case 0x2103:				//	PPU - OAMADDL / OAM Address High
+			PPU_writeOAMAddressHigh(val);
+			break;
+		case 0x2104:				//	PPU - OAMDATA / Write data to OAM
+			PPU_writeOAM(val);
+			break;
 		case 0x2105:				//	PPU - BGMODE - BG Mode and Character Size (W)
 			PPU_writeBGMode(val);
 			break;
@@ -481,10 +496,10 @@ void BUS_writeToMem(u8 val, u32 fulladr) {
 
 		//	MODE 7 COLOR MATH
 		case 0x211b:
-			printf("Unimplemented M7 Color Math!\n");
+			//printf("Unimplemented M7 Color Math!\n");
 			break;
 		case 0x211c:
-			printf("Unimplemented M7 Color Math!\n");
+			//printf("Unimplemented M7 Color Math!\n");
 			break;
 
 			//	TODO Writes to the following registers

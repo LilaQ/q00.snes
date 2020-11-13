@@ -20,6 +20,9 @@ void resetCPU() {
 	regs.resetStackPointer();
 	regs.setDataBankRegister(0x00);
 	regs.setProgramBankRegister(0x00);
+	regs.setAccumulator((u16)0x0000);
+	regs.setX((u16)0x0000);
+	regs.setY((u16)0x0000);
 	//printf("Reset CPU, starting at PC: %x\n", regs.PC);
 }
 
@@ -446,7 +449,8 @@ u8 CLC() {
 //	Add with carry
 u8 ADC(u32(*f)(), u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
-		u8 val = BUS_readFromMem(f());
+		u32 addr = f();
+		u8 val = BUS_readFromMem(addr);
 		u32 res = 0;
 		if (regs.P.getDecimal()) {
 			res = (regs.getAccumulator() & 0xf) + (val & 0x0f) + regs.P.getCarry();
@@ -459,7 +463,7 @@ u8 ADC(u32(*f)(), u8 cycles) {
 		else {
 			res = (regs.getAccumulator() & 0xff) + val + regs.P.getCarry();
 		}
-		regs.P.setOverflow((~(regs.getAccumulator() ^ val) & (regs.getAccumulator() ^ res) & 0x80) == 0x80);
+		regs.P.setOverflow((~((regs.getAccumulator() & 0xff) ^ val) & ((regs.getAccumulator() & 0xff) ^ res) & 0x80) == 0x80);
 		if (regs.P.getDecimal() && res > 0x9f) {
 			res += 0x60;
 		}
@@ -525,7 +529,7 @@ u8 SBC(u32(*f)(), u8 cycles) {
 		else {
 			res = (regs.getAccumulator() & 0xff) + val + regs.P.getCarry();
 		}
-		regs.P.setOverflow((~(regs.getAccumulator() ^ val) & (regs.getAccumulator() ^ res) & 0x80) == 0x80);
+		regs.P.setOverflow((~((regs.getAccumulator() & 0xff) ^ val) & ((regs.getAccumulator() & 0xff) ^ res) & 0x80) == 0x80);
 		if (regs.P.getDecimal() && res <= 0xff) {
 			res -= 0x60;
 		}
@@ -604,20 +608,20 @@ u8 CPX(u32(*f)(), u8 cycles) {
 	if (regs.P.getIndexSize()) {
 		u32 adr = f();
 		u8 m = BUS_readFromMem(adr);
-		u8 val = (u8)regs.getX() - m;
-		regs.P.setNegative(val >> 7);
-		regs.P.setZero(val == 0);
-		regs.P.setCarry(regs.getX() >= m);
+		int val = (u8)regs.getX() - m;
+		regs.P.setNegative((u8)val >> 7);
+		regs.P.setZero((u8)val == 0);
+		regs.P.setCarry(val >= 0);
 	}
 	else {
 		u32 adr = f();
 		u8 lo = BUS_readFromMem(adr);
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 m = (hi << 8) | lo;
-		u16 val = regs.getX() - m;
-		regs.P.setNegative(val >> 15);
-		regs.P.setZero(val == 0);
-		regs.P.setCarry(regs.getX() >= m);
+		int val = regs.getX() - m;
+		regs.P.setNegative((u16)val >> 15);
+		regs.P.setZero((u16)val == 0);
+		regs.P.setCarry(val >= 0);
 	}
 	regs.PC++;
 	return cycles;
@@ -628,20 +632,20 @@ u8 CPY(u32(*f)(), u8 cycles) {
 	if (regs.P.getIndexSize()) {
 		u32 adr = f();
 		u8 m = BUS_readFromMem(adr);
-		u8 val = (u8)regs.getY() - m;
-		regs.P.setNegative(val >> 7);
-		regs.P.setZero(val == 0);
-		regs.P.setCarry(regs.getY() >= m);
+		int val = (u8)regs.getY() - m;
+		regs.P.setNegative((u8)val >> 7);
+		regs.P.setZero((u8)val == 0);
+		regs.P.setCarry(val >= 0);
 	}
 	else {
 		u32 adr = f();
 		u8 lo = BUS_readFromMem(adr);
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 m = (hi << 8) | lo;
-		u16 val = regs.getY() - m;
-		regs.P.setNegative(val >> 15);
-		regs.P.setZero(val == 0);
-		regs.P.setCarry(regs.getY() >= m);
+		int val = regs.getY() - m;
+		regs.P.setNegative((u16)val >> 15);
+		regs.P.setZero((u16)val == 0);
+		regs.P.setCarry(val >= 0);
 	}
 	regs.PC++;
 	return cycles;
@@ -652,20 +656,20 @@ u8 CMP(u32(*f)(), u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
 		u32 adr = f();
 		u8 m = BUS_readFromMem(adr);
-		u8 val = regs.getAccumulator() - m;
-		regs.P.setNegative(val >> 7);
-		regs.P.setZero(val == 0);
-		regs.P.setCarry((regs.getAccumulator() & 0xff) >= m);
+		int val = (u8)regs.getAccumulator() - m;
+		regs.P.setNegative((u8)val >> 7);
+		regs.P.setZero((u8)val == 0);
+		regs.P.setCarry(val >= 0);
 	}
 	else {
 		u32 adr = f();
 		u8 lo = BUS_readFromMem(adr);
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 m = (hi << 8) | lo;
-		u16 val = regs.getAccumulator() - m;
-		regs.P.setNegative(val >> 15);
-		regs.P.setZero(val == 0);
-		regs.P.setCarry(regs.getAccumulator() >= m);
+		int val = regs.getAccumulator() - m;
+		regs.P.setNegative((u16)val >> 15);
+		regs.P.setZero((u16)val == 0);
+		regs.P.setCarry(val >= 0);
 	}
 	regs.PC++;
 	return cycles;
@@ -765,18 +769,32 @@ u8 DEC(u32(*f)(), u8 cycles) {
 
 //	Decrement X
 u8 DEX() {
-	regs.setX((u16)(regs.getX()-1));
-	regs.P.setZero(regs.getX() == 0);
-	regs.P.setNegative(regs.getX() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
+	if (regs.P.getIndexSize()) {
+		regs.setX((u8)(regs.getX() - 1));
+		regs.P.setZero(regs.getX() == 0);
+		regs.P.setNegative(regs.getX() >> 7);
+	}
+	else {
+		regs.setX((u16)(regs.getX() - 1));
+		regs.P.setZero(regs.getX() == 0);
+		regs.P.setNegative(regs.getX() >> 15);
+	}
 	regs.PC++;
 	return 2;
 }
 
 //	Decrement Y
 u8 DEY() {
-	regs.setY((u16)(regs.getY() - 1));
-	regs.P.setZero(regs.getY() == 0);
-	regs.P.setNegative(regs.getY() >> (7 + ((1 - regs.P.getIndexSize()) * 8)));
+	if (regs.P.getIndexSize()) {
+		regs.setY((u8)(regs.getY() - 1));
+		regs.P.setZero(regs.getY() == 0);
+		regs.P.setNegative(regs.getY() >> 7);
+	}
+	else {
+		regs.setY((u16)(regs.getY() - 1));
+		regs.P.setZero(regs.getY() == 0);
+		regs.P.setNegative(regs.getY() >> 15);
+	}
 	regs.PC++;
 	return 2;
 }
@@ -862,14 +880,14 @@ u8 ASL_A(u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
 		u8 val = regs.getAccumulator() & 0xff;
 		regs.P.setCarry(val >> 7);
-		regs.setAccumulator((u8)((val + val) & 0xff));
+		regs.setAccumulator((u8)((val << 1) & 0xff));
 		regs.P.setZero((regs.getAccumulator() & 0xff) == 0);
 		regs.P.setNegative((regs.getAccumulator() & 0xff) >> 7);
 	}
 	else {
 		u16 val = regs.getAccumulator();
 		regs.P.setCarry(val >> 15);
-		regs.setAccumulator((u16)(val + val));
+		regs.setAccumulator((u16)(val << 1));
 		regs.P.setZero(regs.getAccumulator() == 0);
 		regs.P.setNegative(regs.getAccumulator() >> 15);
 	}
@@ -881,19 +899,19 @@ u8 ASL(u32(*f)(), u8 cycles) {
 	if (regs.P.getAccuMemSize()) {
 		u8 val = BUS_readFromMem(adr);
 		regs.P.setCarry(val >> 7);
-		BUS_writeToMem(val + val, adr);
-		regs.P.setZero((u8)(val + val) == 0);
-		regs.P.setNegative((val + val) >> 7);
+		BUS_writeToMem((u8)(val << 1), adr);
+		regs.P.setZero((u8)(val << 1) == 0);
+		regs.P.setNegative((u8)(val << 1) >> 7);
 	}
 	else {
 		u8 lo = BUS_readFromMem(adr);
 		u8 hi = BUS_readFromMem(adr + 1);
 		u16 val = (hi << 8) | lo;
 		regs.P.setCarry(val >> 15);
-		BUS_writeToMem((val + val) & 0xff, adr);
-		BUS_writeToMem((val + val) >> 8, adr + 1);
-		regs.P.setZero((u16)(val + val) == 0);
-		regs.P.setNegative((u16)(val + val) >> 15);
+		BUS_writeToMem((val << 1) & 0xff, adr);
+		BUS_writeToMem((val << 1) >> 8, adr + 1);
+		regs.P.setZero((u16)(val << 1) == 0);
+		regs.P.setNegative((u16)(val << 1) >> 15);
 	}
 	regs.PC++;
 	return cycles;
@@ -924,8 +942,8 @@ u8 LSR(u32(*f)(), u8 cycles) {
 		u8 val = BUS_readFromMem(adr);
 		regs.P.setNegative(0);
 		regs.P.setCarry(val & 1);
-		BUS_writeToMem((u8)((val & 0xff) >> 1), adr);
-		regs.P.setZero((u8)((regs.getAccumulator() & 0xff) >> 1) == 0);
+		BUS_writeToMem((val >> 1), adr);
+		regs.P.setZero((val >> 1) == 0);
 	}
 	else {
 		u8 lo = BUS_readFromMem(adr);
@@ -933,9 +951,9 @@ u8 LSR(u32(*f)(), u8 cycles) {
 		u16 val = (hi << 8) | lo;
 		regs.P.setNegative(0);
 		regs.P.setCarry(val & 1);
-		BUS_writeToMem(((val & 0xffff) >> 1) & 0xff, adr);
-		BUS_writeToMem(((val & 0xffff) >> 1) >> 8, adr + 1);
-		regs.P.setZero((u8)((regs.getAccumulator() & 0xffff) >> 1) == 0);
+		BUS_writeToMem((val >> 1) & 0xff, adr);
+		BUS_writeToMem((val >> 1) >> 8, adr + 1);
+		regs.P.setZero((val >> 1) == 0);
 	}
 	regs.PC++;
 	return cycles;
@@ -948,7 +966,7 @@ u8 ROL(u32(*f)(), u8 cycles) {
 		u8 val = BUS_readFromMem(adr);
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val >> 7);
-		val = val + val + old_C;
+		val = (val << 1) + old_C;
 		BUS_writeToMem(val, adr);
 		regs.P.setZero(val == 0);
 		regs.P.setNegative(val >> 7);
@@ -957,7 +975,7 @@ u8 ROL(u32(*f)(), u8 cycles) {
 		u16 val = (BUS_readFromMem(adr + 1) << 8) | BUS_readFromMem(adr);
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val >> 15);
-		val = val + val + old_C;
+		val = (val << 1) + old_C;
 		BUS_writeToMem((u8)val, adr);
 		BUS_writeToMem(val >> 8, adr + 1);
 		regs.P.setZero(val == 0);
@@ -972,7 +990,7 @@ u8 ROL_A(u8 cycles) {
 		u8 val = (u8)regs.getAccumulator();
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val >> 7);
-		val = val + val + old_C;
+		val = (val << 1) + old_C;
 		regs.setAccumulator(val);
 		regs.P.setZero(val == 0);
 		regs.P.setNegative(val >> 7);
@@ -981,7 +999,7 @@ u8 ROL_A(u8 cycles) {
 		u16 val = regs.getAccumulator();
 		u8 old_C = regs.P.getCarry();
 		regs.P.setCarry(val >> 15);
-		val = val + val + old_C;
+		val = (val << 1) + old_C;
 		regs.setAccumulator(val);
 		regs.P.setZero(val == 0);
 		regs.P.setNegative(val >> 15);
@@ -1050,7 +1068,7 @@ u8 BIT(u32(*f)(), u8 cycles, bool is_immediate) {
 			regs.P.setNegative(val >> 7);
 			regs.P.setOverflow((val >> 6) & 1);
 		}
-		regs.P.setZero((val & regs.getAccumulator()) == 0x00);
+		regs.P.setZero((val & (regs.getAccumulator() & 0xff)) == 0x00);
 	} 
 	else {
 		u32 adr = f();
@@ -1809,7 +1827,7 @@ u32 ADDR_getAbsoluteIndexedY() {			//	verified
 }
 u32 ADDR_getAbsoluteLongIndexedX() {		//	verified
 	regs.PC += 3;
-	return (BUS_readFromMem((regs.PB << 16) | regs.PC) << 16) | (BUS_readFromMem((regs.PB << 16) | regs.PC - 1) << 8) | BUS_readFromMem((regs.PB << 16) | regs.PC - 2) + regs.getX();
+	return ((BUS_readFromMem((regs.PB << 16) | regs.PC) << 16) | (BUS_readFromMem((regs.PB << 16) | regs.PC - 1) << 8) | BUS_readFromMem((regs.PB << 16) | regs.PC - 2)) + regs.getX();
 }
 u32 ADDR_getAbsoluteIndirect() {			//	verified
 	regs.PC += 2;
@@ -1834,7 +1852,7 @@ u32 ADDR_getAbsoluteIndexedIndirectX() {	//	verified
 	regs.PC += 2;
 	u8 lo = BUS_readFromMem((regs.PB << 16) | regs.PC - 1);
 	u8 hi = BUS_readFromMem((regs.PB << 16) | regs.PC);
-	u32 adr = (regs.PB << 16) | (hi << 8) | lo + regs.getX();
+	u32 adr = ((regs.PB << 16) | (hi << 8) | lo) + regs.getX();
 	u8 i_lo = BUS_readFromMem(adr);
 	u8 i_hi = BUS_readFromMem(adr + 1);
 	return (regs.PB << 16) | (i_hi << 8) | i_lo;
@@ -1858,26 +1876,26 @@ u32 ADDR_getDirectPageIndexedY() {
 u32 ADDR_getDirectPageIndirect() {
 	regs.PC++;
 	u8 dbr = regs.DBR;
-	u8 dp_index = BUS_readFromMem((regs.PB << 16) | regs.PC + regs.D);
+	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC) + regs.D);
 	u16 dp_adr = (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	return (dbr << 16) | dp_adr;
 }
 u32 ADDR_getDirectPageIndirectLong() {
 	regs.PC++;
-	u16 dp_index = BUS_readFromMem((regs.PB << 16) | regs.PC) + regs.D;
+	u16 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC)) + regs.D;
 	u32 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	return dp_adr;
 }
 u32 ADDR_getDirectPageIndirectX() {
 	regs.PC++;
 	u8 dbr = regs.DBR;
-	u8 dp_index = BUS_readFromMem((regs.PB << 16) | regs.PC + regs.D) + regs.getX();
+	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC) + regs.D) + regs.getX();
 	u16 dp_adr = (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	return (dbr << 16) | dp_adr;
 }
 u32 ADDR_getDirectPageIndirectIndexedY() {
 	regs.PC++;
-	u8 dp_index = BUS_readFromMem((regs.PB << 16) | regs.PC + regs.D);
+	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC) + regs.D);
 	u32 dp_adr = (regs.DBR << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
@@ -1885,7 +1903,7 @@ u32 ADDR_getDirectPageIndirectIndexedY() {
 }
 u32 ADDR_getDirectPageIndirectLongIndexedY() {
 	regs.PC++;
-	u8 dp_index = BUS_readFromMem((regs.PB << 16) | regs.PC + regs.D);
+	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC) + regs.D);
 	u32 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
@@ -1899,7 +1917,7 @@ u32 ADDR_getStackRelative() {
 u32 ADDR_getStackRelativeIndirectIndexedY() {
 	regs.PC++;
 	u8 byte = BUS_readFromMem((regs.PB << 16) | regs.PC);
-	u8 base = BUS_readFromMem((regs.DBR << 16) | regs.getSP() + byte);
+	u8 base = BUS_readFromMem(((regs.DBR << 16) | regs.getSP()) + byte);
 	return base + regs.getY();
 }
 bool pageBoundaryCrossed() {
@@ -1908,6 +1926,10 @@ bool pageBoundaryCrossed() {
 	return v;
 }
 
+bool enable_logging = false;
+void CPU_enableLogging() {
+	enable_logging = true;
+}
 
 u8 CPU_step() {
 
@@ -1922,12 +1944,14 @@ u8 CPU_step() {
 			Interrupts::clearNMIFlag();
 		}
 
-	//std::string flags = byteToBinaryString(regs.P.getByte());
-	//printf("Op: %02x %02x %02x %02x  PC : 0x%06x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), (regs.PB << 16) | regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	//printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
+	//if (enable_logging) {
+	//	std::string flags = byteToBinaryString(regs.P.getByte());
+	//	//printf("Op: %02x %02x %02x %02x  PC : 0x%06x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), (regs.PB << 16) | regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
+	//	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
+	//}
 
-	//if (regs.PC == 0x8079 && regs.PB == 0)
-	//	//printf("holup");
+	/*if (regs.PC == 0xf7c1 && regs.PB == 0x7)
+		printf("hold up!");*/
 	//	exit(1);
 
 	if (!CPU_STOPPED) {

@@ -298,5 +298,6 @@ void resetCPU();
 void togglePause();
 u16 CPU_getPC();
 bool CPU_isStopped();
+void CPU_enableLogging();
 
 #endif // !LIB_CPU

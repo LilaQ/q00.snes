@@ -3,3 +3,5 @@ Release/*
 smw.*
 *.sfc
 *.sym
+*.smc
+*.srm

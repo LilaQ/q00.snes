@@ -29,11 +29,13 @@ void initWindow(SDL_Window *win, std::string filename) {
 	AppendMenu(hFile, MF_STRING, 1, "exit");
 	AppendMenu(hHelp, MF_STRING, 3, "about");
 	AppendMenu(hDebugger, MF_STRING, 14, "CGRAM");
+	AppendMenu(hDebugger, MF_STRING, 15, "OAM");
 	AppendMenu(hDebugger, MF_STRING, 5, "VRAM");
 	AppendMenu(hDebugger, MF_STRING, 3, "BG1");
 	AppendMenu(hDebugger, MF_STRING, 4, "BG2");
 	AppendMenu(hDebugger, MF_STRING, 6, "BG3");
 	AppendMenu(hDebugger, MF_STRING, 8, "BG4");
+	AppendMenu(hDebugger, MF_STRING, 18, "Start Logging");
 	SetMenu(hwnd, hMenuBar);
 
 	//	Enable WM events for SDL Window
@@ -91,6 +93,14 @@ void handleWindowEvents() {
 				//	VRAM Map
 				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 5) {
 					showVRAMMap();
+				}
+				//	OAM Map
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 15) {
+					showOAMMap();
+				}
+				//	Start Logging
+				else if (LOWORD(event.syswm.msg->msg.win.wParam) == 18) {
+					CPU_enableLogging();
 				}
 
 
@@ -283,6 +293,59 @@ void showVRAMMap() {
 			((PPU_readVRAM(i + 6) >> 8) > 32) ? PPU_readVRAM(i + 6) >> 8 : '.',
 			((PPU_readVRAM(i + 7) & 0xff) > 32) ? PPU_readVRAM(i + 7) & 0xff : '.',
 			((PPU_readVRAM(i + 7) >> 8) > 32) ? PPU_readVRAM(i + 7) >> 8 : '.'
+		);
+		s.append((std::string)title);
+	}
+
+	const TCHAR* text = s.c_str();
+	HFONT font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
+	LOGFONT lf;
+	GetObject(font, sizeof(LOGFONT), &lf);
+	lf.lfWeight = FW_LIGHT;
+	HFONT boldFont = CreateFontIndirect(&lf);
+	SendMessage(hScroll, WM_SETFONT, (WPARAM)boldFont, 60);
+	SendMessage(hScroll, WM_SETTEXT, 60, reinterpret_cast<LPARAM>(text));
+}
+
+void showOAMMap() {
+
+	SDL_Renderer* renderer;
+	SDL_Window* window;
+
+	//	init and create window and renderer
+	SDL_Init(SDL_INIT_VIDEO);
+	SDL_CreateWindowAndRenderer(730, 880, 0, &window, &renderer);
+	SDL_SetWindowSize(window, 730, 880);
+	SDL_SysWMinfo wmInfo;
+	SDL_VERSION(&wmInfo.version);
+	SDL_GetWindowWMInfo(window, &wmInfo);
+	SDL_SetWindowTitle(window, "[ q00.snes ][ oam map ]");
+
+	HWND hwnd = wmInfo.info.win.window;
+	HINSTANCE hInst = wmInfo.info.win.hinstance;
+	HWND hScroll = CreateWindow("EDIT", NULL, WS_VISIBLE | WS_CHILD | WS_VSCROLL | ES_AUTOVSCROLL | ES_LEFT | WS_BORDER | ES_MULTILINE | ES_READONLY | ES_MULTILINE | ES_READONLY, 10, 10, 710, 860, hwnd, NULL, hInst, NULL);
+
+	//	MEMDUMP Control
+	std::string s = "Offset      00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r\n\r\n";
+	for (int i = 0; i < 0x220; i += 0x10) {
+		char title[85];
+		snprintf(title, sizeof title, "0x%04x      %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\r\n", i,
+			PPU_readOAM(i),
+			PPU_readOAM(i + 1),
+			PPU_readOAM(i + 2),
+			PPU_readOAM(i + 3),
+			PPU_readOAM(i + 4),
+			PPU_readOAM(i + 5),
+			PPU_readOAM(i + 6),
+			PPU_readOAM(i + 7),
+			PPU_readOAM(i + 8),
+			PPU_readOAM(i + 9),
+			PPU_readOAM(i + 10),
+			PPU_readOAM(i + 11),
+			PPU_readOAM(i + 12),
+			PPU_readOAM(i + 13),
+			PPU_readOAM(i + 14),
+			PPU_readOAM(i + 15)
 		);
 		s.append((std::string)title);
 	}

@@ -24,6 +24,7 @@ void initWindow(SDL_Window *win, std::string filename);
 void handleWindowEvents();
 void showCGRAMMap();
 void showVRAMMap();
+void showOAMMap();
 void setFPS(u16 fps);
 void setTitle(std::string filename);
 
