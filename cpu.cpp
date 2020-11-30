@@ -1521,8 +1521,8 @@ u8 BRA(u32(*f)(), u8 cycles) {
 u8 BRL(u32(*f)(), u8 cycles) {
 	u8 pb = regs.PB;
 	u32 adr = (pb << 16) | f();
-	i8 offset = (BUS_readFromMem((pb << 16) | adr + 1) << 8) | BUS_readFromMem((pb << 16) | adr);
-	regs.PC += 2;
+	i16 offset = (BUS_readFromMem((pb << 16) | adr + 1) << 8) | BUS_readFromMem((pb << 16) | adr);
+	regs.PC++;
 	regs.PC += offset;
 	return cycles;
 }
@@ -1557,6 +1557,13 @@ u8 JML(u32 (*f)(), u8 cycles) {
 u8 JMP(u32(*f)(), u8 cycles) {
 	u32 adr = f();
 	regs.PC = adr;
+	return cycles;
+}
+
+u8 JMP_ABS(u8 cycles) {
+	regs.PC += 2;
+	u16 adr = ((BUS_readFromMem((regs.PB << 16) | regs.PC) << 8) | BUS_readFromMem((regs.PB << 16) | regs.PC - 1));
+	regs.PC = (regs.PB << 16) | adr;
 	return cycles;
 }
 
@@ -1634,8 +1641,8 @@ u8 RTL(u8 cycles) {
 
 //	Block move next
 u8 MVN() {
-	u8 dst_bank = BUS_readFromMem(regs.PC + 1);
-	u8 src_bank = BUS_readFromMem(regs.PC + 2);
+	u8 dst_bank = BUS_readFromMem((regs.PB << 16) | regs.PC + 1);
+	u8 src_bank = BUS_readFromMem((regs.PB << 16) | regs.PC + 2);
 	regs.setDataBankRegister(dst_bank);
 	u32 dst = (dst_bank << 16) | regs.getY();
 	u32 src = (src_bank << 16) | regs.getX();
@@ -1812,7 +1819,7 @@ u32 ADDR_getAbsoluteLong() {
 u32 ADDR_getAbsoluteIndexedX() {			//	verified
 	regs.PC += 2;
 	u8 dbr = regs.DBR;
-	u16 adr = ((BUS_readFromMem((regs.PB << 16) | regs.PC) << 8) | BUS_readFromMem( (regs.PB << 16) | regs.PC - 1));
+	u16 adr = ((BUS_readFromMem((regs.PB << 16) | regs.PC) << 8) | BUS_readFromMem((regs.PB << 16) | regs.PC - 1));
 	pbr = (adr & 0xff00) != ((adr + regs.getX()) & 0xff00);
 	adr = adr + regs.getX();
 	return (dbr << 16) | adr;
@@ -1859,7 +1866,7 @@ u32 ADDR_getAbsoluteIndexedIndirectX() {	//	verified
 }
 u32 ADDR_getLong() {						//	verified
 	regs.PC += 3;
-	return (BUS_readFromMem(regs.PC) << 16) | (BUS_readFromMem(regs.PC - 1) << 8) | BUS_readFromMem(regs.PC - 2);
+	return (BUS_readFromMem((regs.PB << 16) | regs.PC) << 16) | (BUS_readFromMem((regs.PB << 16) | regs.PC - 1) << 8) | BUS_readFromMem((regs.PB << 16) | regs.PC - 2);
 }
 u32 ADDR_getDirectPage() {
 	regs.PC++;
@@ -1895,7 +1902,7 @@ u32 ADDR_getDirectPageIndirectX() {
 }
 u32 ADDR_getDirectPageIndirectIndexedY() {
 	regs.PC++;
-	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC) + regs.D);
+	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC)) + regs.D;
 	u32 dp_adr = (regs.DBR << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
@@ -1903,7 +1910,7 @@ u32 ADDR_getDirectPageIndirectIndexedY() {
 }
 u32 ADDR_getDirectPageIndirectLongIndexedY() {
 	regs.PC++;
-	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC) + regs.D);
+	u8 dp_index = BUS_readFromMem(((regs.PB << 16) | regs.PC)) + regs.D;
 	u32 dp_adr = (BUS_readFromMem(dp_index + 2) << 16) | (BUS_readFromMem(dp_index + 1) << 8) | BUS_readFromMem(dp_index);
 	pbr = (dp_adr & 0xff00) != ((dp_adr + regs.getY()) & 0xff00);
 	dp_adr += regs.getY();
@@ -1944,14 +1951,20 @@ u8 CPU_step() {
 			Interrupts::clearNMIFlag();
 		}
 
-	//if (enable_logging) {
-	//	std::string flags = byteToBinaryString(regs.P.getByte());
+	if (enable_logging) {
+		std::string flags = byteToBinaryString(regs.P.getByte());
 	//	//printf("Op: %02x %02x %02x %02x  PC : 0x%06x A: 0x%04x X: 0x%04x Y: 0x%04x SP: 0x%04x D: 0x%04x DB: 0x%02x P: %s (0x%02x) Emu: %s\n", BUS_readFromMem(regs.PC), BUS_readFromMem(regs.PC+1), BUS_readFromMem(regs.PC+2), BUS_readFromMem(regs.PC + 3), (regs.PB << 16) | regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str(), regs.P.getByte(), regs.P.getEmulation() ? "true" : "false");
-	//	printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
-	//}
+		printf("%02x%04x A:%04x X:%04x Y:%04x S:%04x D:%04x DB:%02x %s \n", regs.PB, regs.PC, regs.getAccumulator(), regs.getX(), regs.getY(), regs.getSP(), regs.D, regs.DBR, flags.c_str());
+	}
 
-	/*if (regs.PC == 0xf7c1 && regs.PB == 0x7)
-		printf("hold up!");*/
+	if (regs.PC == 0x8579 && regs.PB == 0x4)
+		printf("hold up!");
+	if (regs.PC == 0x9158 && regs.PB == 0x4)
+		printf("hold up!");
+	if (regs.PC == 0x8b35 && regs.PB == 0x5)
+		printf("prp");
+	if (regs.PC == 0xdc60 && regs.PB == 0x4)
+		printf("prp");
 	//	exit(1);
 
 	if (!CPU_STOPPED) {
@@ -2033,7 +2046,7 @@ u8 CPU_step() {
 		case 0x49:	return (regs.P.getAccuMemSize()) ? EOR(ADDR_getImmediate_8, 2 + regs.P.isMReset()) : EOR(ADDR_getImmediate_16, 2 + regs.P.isMReset()); break;
 		case 0x4a:	return LSR_A(); break;
 		case 0x4b:	return PHK(); break;
-		case 0x4c:	return JMP(ADDR_getAbsolute, 3); break;
+		case 0x4c:	return JMP_ABS(3); break;
 		case 0x4d:	return EOR(ADDR_getAbsolute, 4 + regs.P.isMReset()); break;
 		case 0x4e:	return LSR(ADDR_getAbsolute, 6 + regs.P.isMReset()); break;
 		case 0x4f:	return EOR(ADDR_getAbsoluteLong, 5 + regs.P.isMReset()); break;
